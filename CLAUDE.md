@@ -16,6 +16,15 @@ We are writing an open-source web implementation of a voice synthesiser called c
 - We will follow the research paper as closely as possible, but will make pragmatic decisions where necessary for web implementation.
 - Wherever possible, parameters will be live-adjustable (So we will avoid IIR filters if another approach is feasible.)
 
+## Code Structure
+
+Audio processing components live in `src/nodes/`. Some nodes are low level utilities (e.g. gain). Others are higher level, building on these primitives. Each node follows a consistent pattern:
+
+- **Interface**: All nodes implement `Node<T>` from `types.ts`, providing `update(params)`, `destroy()`, and `in`/`out` AudioNode connection points.
+- **Factory**: Nodes use an async static `create(ctx, params)` method rather than direct construction, allowing for async setup of Web Audio resources.
+- **AudioParams**: Where applicable, nodes expose underlying `AudioParam` properties for sample-accurate automation.
+- **Starting and Stopping**: Nodes that generate sound (e.g., oscillators or nodes that are built on top of oscillators) start automatically on creation and can be started and stopped via their own methods.
+
 ## Key voice parameters
 
 The synthesiser will expose the following key parameters for voice synthesis. They will be fed into all relevant modules.
