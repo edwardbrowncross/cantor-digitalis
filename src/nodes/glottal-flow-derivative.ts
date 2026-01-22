@@ -1,0 +1,164 @@
+import type { Node } from "./types";
+import { PulseTrain } from "./pulse-train";
+import { GlottalFormant } from "./glottal-formant";
+import { SpectralTilt } from "./spectral-tilt";
+import { NoiseSource } from "./noise-source";
+import { Gain } from "./gain";
+
+export type GlottalFlowDerivativeParams = {
+  /** Fundamental frequency in Hz (derived from P, P₀, with perturbations applied) */
+  f0: number;
+  /** Glottal formant centre frequency in Hz, computed as f0 / (2 * Oq) */
+  Fg: number;
+  /** Glottal formant bandwidth in Hz, computed from f0, Oq, and αm */
+  Bg: number;
+  /** Source amplitude, derived from E, Oq, and R (shimmer) */
+  Ag: number;
+  /** First stage spectral tilt attenuation in dB at 3 kHz, derived from E and M */
+  Tl1: number;
+  /** Second stage spectral tilt attenuation in dB at 3 kHz, derived from E and M */
+  Tl2: number;
+  /** Noise amplitude, derived from B (breathiness) */
+  An: number;
+};
+
+/**
+ * Glottal Flow Derivative (GFD)
+ *
+ * The glottal flow derivative model represents the sound source produced by
+ * the vibrating vocal folds. It consists of a voiced component (periodic pulses
+ * shaped by the glottal formant and spectral tilt) and an unvoiced component
+ * (filtered noise for breathiness).
+ *
+ * The noise is modulated by the glottal flow derivative, so aspiration noise
+ * follows the glottal cycle - loudest during the open phase, quiet when closed.
+ *
+ * Signal flow:
+ *
+ *   PulseTrain(f0) → GlottalFormant(Fg, Bg, Ag) → SpectralTilt(Tl1, Tl2) ──┬────→ Output
+ *                                                                          │        ↑
+ *                                                                          │ (mod)  │
+ *                                                                          ↓        │
+ *   NoiseSource(An) ─────────────────────────────────────────────────→ [Multiply] ──┘
+ *
+ * Paper reference: Section 3.2 (overall structure)
+ *
+ * Input parameters:
+ *   - f0 (fundamental frequency) — controls the pulse train period
+ *   - Fg (glottal formant centre frequency) — computed as f0 / (2·Oq)
+ *   - Bg (glottal formant bandwidth) — computed from f0, Oq, and αm
+ *   - Ag (source amplitude) — derived from E, Oq, and R (shimmer)
+ *   - Tl1 (first tilt stage attenuation in dB at 3 kHz) — derived from E and M
+ *   - Tl2 (second tilt stage attenuation in dB at 3 kHz) — derived from E and M
+ *   - An (noise amplitude) — derived from B (breathiness)
+ */
+export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> {
+  private pulseTrain: PulseTrain;
+  private glottalFormant: GlottalFormant;
+  private spectralTilt: SpectralTilt;
+  private noiseSource: NoiseSource;
+  private noiseModulator: GainNode; // Multiplies noise by GFD signal
+  private outputGain: Gain;
+
+  public in: AudioNode | null = null; // Source node has no input
+  public out: AudioNode;
+
+  private constructor(
+    pulseTrain: PulseTrain,
+    glottalFormant: GlottalFormant,
+    spectralTilt: SpectralTilt,
+    noiseSource: NoiseSource,
+    noiseModulator: GainNode,
+    outputGain: Gain
+  ) {
+    this.pulseTrain = pulseTrain;
+    this.glottalFormant = glottalFormant;
+    this.spectralTilt = spectralTilt;
+    this.noiseSource = noiseSource;
+    this.noiseModulator = noiseModulator;
+    this.outputGain = outputGain;
+    this.out = outputGain.out;
+  }
+
+  /**
+   * Creates a new GlottalFlowDerivative node.
+   *
+   * Sets up the voiced path (pulse train → glottal formant → spectral tilt)
+   * and the noise modulation path where noise is multiplied by the GFD signal.
+   */
+  static async create(
+    ctx: AudioContext,
+    params: GlottalFlowDerivativeParams
+  ): Promise<GlottalFlowDerivative> {
+    // Create all sub-nodes in parallel
+    const [pulseTrain, glottalFormant, spectralTilt, noiseSource, outputGain] =
+      await Promise.all([
+        PulseTrain.create(ctx, { f0: params.f0 }),
+        GlottalFormant.create(ctx, { Fg: params.Fg, Bg: params.Bg, Ag: params.Ag }),
+        SpectralTilt.create(ctx, { Tl1: params.Tl1, Tl2: params.Tl2 }),
+        NoiseSource.create(ctx, { An: params.An }),
+        Gain.create(ctx, { gain: 1 }),
+      ]);
+
+    // Create noise modulator - a GainNode whose gain is modulated by the GFD signal
+    // This implements the multiplication: noise × GFD
+    const noiseModulator = ctx.createGain();
+    noiseModulator.gain.setValueAtTime(0, ctx.currentTime); // Base gain is 0, modulated by audio signal
+
+    // Connect voiced path: PulseTrain → GlottalFormant → SpectralTilt → Output
+    pulseTrain.out.connect(glottalFormant.in);
+    glottalFormant.out.connect(spectralTilt.in);
+    spectralTilt.out.connect(outputGain.in);
+
+    // Connect GFD signal to modulate the noise gain (audio-rate modulation)
+    spectralTilt.out.connect(noiseModulator.gain);
+
+    // Connect noise through modulator to output: NoiseSource → [×GFD] → Output
+    noiseSource.out.connect(noiseModulator);
+    noiseModulator.connect(outputGain.in);
+
+    return new GlottalFlowDerivative(
+      pulseTrain,
+      glottalFormant,
+      spectralTilt,
+      noiseSource,
+      noiseModulator,
+      outputGain
+    );
+  }
+
+  /**
+   * Updates all glottal flow derivative parameters.
+   * Each sub-node receives its relevant parameters.
+   */
+  update(params: GlottalFlowDerivativeParams): void {
+    this.pulseTrain.update({ f0: params.f0 });
+    this.glottalFormant.update({ Fg: params.Fg, Bg: params.Bg, Ag: params.Ag });
+    this.spectralTilt.update({ Tl1: params.Tl1, Tl2: params.Tl2 });
+    this.noiseSource.update({ An: params.An });
+  }
+
+  /**
+   * Starts the voiced excitation (pulse train).
+   */
+  start(): void {
+    this.pulseTrain.start();
+  }
+
+  /**
+   * Stops the voiced excitation (pulse train).
+   * Note: Noise source continues to produce output based on An parameter.
+   */
+  stop(): void {
+    this.pulseTrain.stop();
+  }
+
+  destroy(): void {
+    this.pulseTrain.destroy();
+    this.glottalFormant.destroy();
+    this.spectralTilt.destroy();
+    this.noiseSource.destroy();
+    this.noiseModulator.disconnect();
+    this.outputGain.destroy();
+  }
+}
