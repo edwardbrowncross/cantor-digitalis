@@ -41,6 +41,42 @@ The synthesiser will expose the following key parameters for voice synthesis. Th
 | **Vocal Tract Size** | S | 0–1 | Apparent size of the vocal tract (0 = small/child, 1 = large/giant) | Scale factor αS (0.5–2.2) applied to all formant centre frequencies (F1–F6) and anti-formant frequency (F_BQ). |
 | **Laryngeal Mechanism** | M | 1 or 2 | Vocal fold vibration mode: M=1 chest voice, M=2 falsetto | Baseline values for Oq and αm, and spectral tilt coefficients (Tl₁, Tl₂). |
 
+## Internal voice parameters
+
+These intermediate and low-level parameters are computed from the key voice parameters above and fed directly into the synthesis modules. They are not exposed to the user but are essential for understanding the signal flow.
+
+### Intermediate Parameters
+
+| Parameter | Symbol | Unit | Description | Derived From |
+|-----------|--------|------|-------------|--------------|
+| **Open Quotient** | Oq | — | Fraction of glottal cycle during which glottis is open | T, E, M |
+| **Asymmetry Coefficient** | αm | — | Ratio of opening phase to open phase duration | T, M |
+| **Vocal Tract Scale** | αS | — | Multiplier for formant frequencies (0.5–2.2) | S |
+| **Larynx Position Factor** | K | — | f₀-dependent formant scaling (~0.975–1.1) | f₀ |
+| **Perturbed Effort** | Ep | — | Vocal effort with heartbeat and slow perturbations applied | E, perturbations |
+
+### Voice Source Parameters
+
+| Parameter | Symbol | Unit | Description | Derived From |
+|-----------|--------|------|-------------|--------------|
+| **Fundamental Frequency** | f₀ | Hz | Pitch of the voice, with perturbations | P, P₀, R (jitter), perturbations |
+| **Glottal Formant Frequency** | Fg | Hz | Centre frequency of glottal resonance: f₀/(2·Oq) | f₀, Oq |
+| **Glottal Formant Bandwidth** | Bg | Hz | Bandwidth of glottal resonance | f₀, Oq, αm |
+| **Source Amplitude** | Ag | — | Amplitude of voiced excitation, with shimmer | E, Oq, R |
+| **Spectral Tilt 1** | Tl₁ | dB | First stage high-frequency attenuation at 3 kHz | E, M |
+| **Spectral Tilt 2** | Tl₂ | dB | Second stage high-frequency attenuation at 3 kHz | E, M |
+| **Noise Amplitude** | An | — | Amplitude of aspiration noise | B, E |
+
+### Vocal Tract Parameters
+
+| Parameter | Symbol | Unit | Description | Derived From |
+|-----------|--------|------|-------------|--------------|
+| **Formant Frequencies** | F1–F6 | Hz | Centre frequencies of vocal tract resonances | H, V, αS, K, f₀, E |
+| **Formant Bandwidths** | B1–B6 | Hz | Bandwidths of vocal tract resonances | H, V |
+| **Formant Amplitudes** | A1–A6 | dB | Gains of vocal tract resonances | H, V, f₀ (for correction) |
+| **Anti-Formant Frequency** | F_BQ | Hz | Centre frequency of hypo-pharynx notch (nom. 4700 Hz) | αS |
+| **Anti-Formant Q** | Q_BQ | — | Quality factor of hypo-pharynx notch (fixed 2.5) | — |
+
 ## Synthesis Modules
 
 ### Glottal Flow Derivative Modules
