@@ -6,13 +6,13 @@ import { NoiseSource } from "./noise-source";
 import { Gain } from "./gain";
 
 export type GlottalFlowDerivativeParams = {
-  /** Fundamental frequency in Hz (derived from P, P₀, with perturbations applied) */
+  /** Fundamental frequency in Hz (derived from P, P₀) */
   f0: number;
   /** Glottal formant centre frequency in Hz, computed as f0 / (2 * Oq) */
   Fg: number;
   /** Glottal formant bandwidth in Hz, computed from f0, Oq, and αm */
   Bg: number;
-  /** Source amplitude, derived from E, Oq, and R (shimmer) */
+  /** Source amplitude, derived from E and Oq */
   Ag: number;
   /** First stage spectral tilt attenuation in dB at 3 kHz, derived from E and M */
   Tl1: number;
@@ -20,6 +20,10 @@ export type GlottalFlowDerivativeParams = {
   Tl2: number;
   /** Noise amplitude, derived from B (breathiness) */
   An: number;
+  /** Jitter depth: maximum f₀ perturbation as a fraction (0-0.3 for ±30%), derived from R */
+  jitterDepth: number;
+  /** Shimmer depth: maximum amplitude perturbation as a fraction (0-1 for ±100%), derived from R */
+  shimmerDepth: number;
 };
 
 /**
@@ -93,7 +97,11 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
     // Create all sub-nodes in parallel
     const [pulseTrain, glottalFormant, spectralTilt, noiseSource, outputGain] =
       await Promise.all([
-        PulseTrain.create(ctx, { f0: params.f0 }),
+        PulseTrain.create(ctx, {
+          f0: params.f0,
+          jitterDepth: params.jitterDepth,
+          shimmerDepth: params.shimmerDepth,
+        }),
         GlottalFormant.create(ctx, { Fg: params.Fg, Bg: params.Bg, Ag: params.Ag }),
         SpectralTilt.create(ctx, { Tl1: params.Tl1, Tl2: params.Tl2 }),
         NoiseSource.create(ctx, { An: params.An }),
@@ -132,7 +140,11 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
    * Each sub-node receives its relevant parameters.
    */
   update(params: GlottalFlowDerivativeParams): void {
-    this.pulseTrain.update({ f0: params.f0 });
+    this.pulseTrain.update({
+      f0: params.f0,
+      jitterDepth: params.jitterDepth,
+      shimmerDepth: params.shimmerDepth,
+    });
     this.glottalFormant.update({ Fg: params.Fg, Bg: params.Bg, Ag: params.Ag });
     this.spectralTilt.update({ Tl1: params.Tl1, Tl2: params.Tl2 });
     this.noiseSource.update({ An: params.An });

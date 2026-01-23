@@ -205,7 +205,7 @@ function computeFormantAttenuation(
  * Those should be applied at runtime for dynamic variation.
  */
 export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
-  const { P, P0, E, H, V, T, B, S, M } = params;
+  const { P, P0, E, H, V, T, B, R, S, M } = params;
 
   // Compute fundamental frequency
   const pitchMidi = P0 + 35 * P;
@@ -225,6 +225,12 @@ export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
 
   // Compute noise amplitude
   const An = computeAn(B, E);
+
+  // Compute roughness parameters (jitter and shimmer)
+  // Jitter: up to ±30% f₀ perturbation at max roughness
+  const jitterDepth = R * 0.3;
+  // Shimmer: up to ±100% amplitude perturbation at max roughness
+  const shimmerDepth = R * 1.0;
 
   // Compute vocal tract scaling factors
   const alphaS = computeAlphaS(S);
@@ -271,6 +277,8 @@ export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
       Tl1,
       Tl2,
       An,
+      jitterDepth,
+      shimmerDepth,
     },
     tract: {
       formants,

@@ -18,7 +18,7 @@ const params: ExternalVoiceParams = {
   V: 0.1,
   T: 0.5,
   B: 0.02,
-  R: 0,
+  R: 0.01,
   S: 0.28,
   M: 1,
 };
