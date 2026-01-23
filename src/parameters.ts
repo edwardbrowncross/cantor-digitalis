@@ -1,0 +1,281 @@
+/**
+ * External Voice Parameters
+ *
+ * These are the high-level, user-controllable parameters for the voice synthesiser.
+ * They map to the perceptually meaningful dimensions described in Section 2.1 of the paper.
+ *
+ * All normalised parameters range from 0 to 1 unless otherwise noted.
+ */
+
+import { VoiceParams } from "./nodes/voice";
+import { interpolateFormants, Formant } from "./vowels";
+
+export type ExternalVoiceParams = {
+  /** Pitch (0-1): Normalised melodic position across the pitch range */
+  P: number;
+  /** Pitch offset: Base MIDI note number (e.g., 48 for C3, 60 for C4) */
+  P0: number;
+  /** Vocal effort (0-1): Perceived force/dynamics of the voice */
+  E: number;
+  /** Vowel height (0-1): 0 = close (e.g., /i/, /u/), 1 = open (e.g., /a/) */
+  H: number;
+  /** Vowel backness (0-1): 0 = back (e.g., /u/), 1 = front (e.g., /i/) */
+  V: number;
+  /** Tenseness (0-1): Degree of vocal fold adduction (0 = lax, 1 = tense) */
+  T: number;
+  /** Breathiness (0-1): Amount of aspiration noise */
+  B: number;
+  /** Roughness (0-1): Structural aperiodicities (jitter/shimmer) */
+  R: number;
+  /** Vocal tract size (0-1): 0 = small/child, 1 = large/giant */
+  S: number;
+  /** Laryngeal mechanism: 1 = chest voice, 2 = falsetto */
+  M: 1 | 2;
+};
+
+/** Phonation threshold - below this vocal effort, no voiced sound is produced */
+const E_THR = 0.2;
+
+/** Signal amplitude at phonation threshold */
+const C_AG = 0.2;
+
+/** Nominal anti-formant frequency in Hz */
+const F_BQ_BASE = 4700;
+
+/** Fixed anti-formant quality factor */
+const Q_BQ = 2.5;
+
+/**
+ * Converts MIDI note number to frequency in Hz.
+ */
+function midiToFrequency(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+/**
+ * Converts dB to linear amplitude.
+ */
+function dbToLinear(db: number): number {
+  return Math.pow(10, db / 20);
+}
+
+/**
+ * Computes the open quotient (Oq) from tenseness, vocal effort, and mechanism.
+ *
+ * Paper reference: Section 4.2.2
+ */
+function computeOq(T: number, E: number, M: 1 | 2): number {
+  // Oq0 depends on mechanism and vocal effort
+  const Oq0 = M === 1 ? 0.903 - 0.426 * E : 0.978 - 0.279 * E;
+
+  // Oq varies with tenseness
+  if (T <= 0.5) {
+    return Math.pow(10, -2 * (1 - Oq0) * T);
+  } else {
+    return Math.pow(10, 2 * Oq0 * (1 - T) - 1);
+  }
+}
+
+/**
+ * Computes the asymmetry coefficient (αm) from tenseness and mechanism.
+ *
+ * Paper reference: Section 4.2.2
+ */
+function computeAlphaM(T: number, M: 1 | 2): number {
+  const alphaM0 = M === 1 ? 0.66 : 0.55;
+
+  if (T <= 0.5) {
+    return 0.5 + 2 * (alphaM0 - 0.5) * T;
+  } else {
+    return 0.9 - 2 * (0.9 - alphaM0) * (1 - T);
+  }
+}
+
+/**
+ * Computes the glottal formant bandwidth (Bg) from f0, Oq, and αm.
+ *
+ * Paper reference: Section 4.2.2
+ */
+function computeBg(f0: number, Oq: number, alphaM: number): number {
+  // Avoid division by zero for extreme αm values
+  const tanArg = Math.PI * (1 - alphaM);
+  const tanValue = Math.tan(Math.max(0.01, Math.min(Math.PI - 0.01, tanArg)));
+  return f0 / (Oq * Math.abs(tanValue));
+}
+
+/**
+ * Computes the spectral tilt parameters (Tl1, Tl2) from vocal effort and mechanism.
+ *
+ * Paper reference: Section 4.2.3
+ */
+function computeSpectralTilt(E: number, M: 1 | 2): { Tl1: number; Tl2: number } {
+  if (M === 1) {
+    return {
+      Tl1: 27 - 21 * E,
+      Tl2: 11 - 11 * E,
+    };
+  } else {
+    return {
+      Tl1: 45 - 36 * E,
+      Tl2: 20 - 18.5 * E,
+    };
+  }
+}
+
+/**
+ * Computes the source amplitude (Ag) from vocal effort and open quotient.
+ *
+ * Paper reference: Section 4.2.4
+ */
+function computeAg(E: number, Oq: number): number {
+  if (E <= E_THR) {
+    return 0;
+  }
+  return ((1 - C_AG) * ((E - E_THR) / (1 - E_THR)) + C_AG) / Oq;
+}
+
+/**
+ * Computes the noise amplitude (An) from breathiness and vocal effort.
+ *
+ * Paper reference: Section 4.2.5
+ */
+function computeAn(B: number, E: number): number {
+  const isVoiced = E > E_THR;
+  return isVoiced ? B : 1.5 * E * B;
+}
+
+/**
+ * Computes the vocal tract scale factor (αS) from the size parameter.
+ *
+ * Paper reference: Section 4.3.2
+ */
+function computeAlphaS(S: number): number {
+  return 1.7 * S + 0.5; // Ranges from 0.5 to 2.2
+}
+
+/**
+ * Computes the larynx position factor (K) from fundamental frequency.
+ *
+ * Paper reference: Section 4.3.3
+ */
+function computeK(f0: number): number {
+  return 1.25e-4 * f0 + 0.975;
+}
+
+/**
+ * Computes the formant amplitude attenuation when a harmonic coincides with a formant.
+ *
+ * Paper reference: Section 4.3.7
+ */
+function computeFormantAttenuation(
+  f0: number,
+  formantFreq: number,
+  formantIndex: number
+): number {
+  // Only apply to first three formants
+  if (formantIndex >= 3) {
+    return 0;
+  }
+
+  // ΔF varies with f0 (15 Hz at f0=50, 100 Hz at f0=1500)
+  const deltaF = 15 + (100 - 15) * ((f0 - 50) / (1500 - 50));
+
+  // Maximum attenuation varies by formant (10-25 dB)
+  const attMax = [10, 15, 25][formantIndex];
+
+  // Find the closest harmonic
+  const harmonic = Math.round(formantFreq / f0);
+  const harmonicFreq = harmonic * f0;
+  const distance = Math.abs(harmonicFreq - formantFreq);
+
+  if (distance < deltaF) {
+    return (1 - distance / deltaF) * attMax;
+  }
+  return 0;
+}
+
+/**
+ * Converts external voice parameters to internal VoiceParams.
+ *
+ * This implements the parameter mapping rules from Section 4 of the paper,
+ * converting perceptually meaningful high-level parameters to the low-level
+ * synthesis parameters needed by the voice engine.
+ *
+ * Note: This function does not apply perturbations (jitter, shimmer, heartbeat).
+ * Those should be applied at runtime for dynamic variation.
+ */
+export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
+  const { P, P0, E, H, V, T, B, S, M } = params;
+
+  // Compute fundamental frequency
+  const pitchMidi = P0 + 35 * P;
+  const f0 = midiToFrequency(pitchMidi);
+
+  // Compute intermediate voice source parameters
+  const Oq = computeOq(T, E, M);
+  const alphaM = computeAlphaM(T, M);
+
+  // Compute glottal formant parameters
+  const Fg = f0 / (2 * Oq);
+  const Bg = computeBg(f0, Oq, alphaM);
+  const Ag = computeAg(E, Oq);
+
+  // Compute spectral tilt
+  const { Tl1, Tl2 } = computeSpectralTilt(E, M);
+
+  // Compute noise amplitude
+  const An = computeAn(B, E);
+
+  // Compute vocal tract scaling factors
+  const alphaS = computeAlphaS(S);
+  const K = computeK(f0);
+
+  // Interpolate base formant values from vowel table
+  const baseFormants = interpolateFormants(V, H);
+
+  // Apply formant tuning rules and scaling
+  const formants = baseFormants.map((formant: Formant, i: number) => {
+    let F = K * alphaS * formant.frequency;
+
+    // F1 tuning (Section 4.3.4): raised with effort, constrained above f0
+    if (i === 0) {
+      const F1Raised = K * alphaS * formant.frequency + (140 / (1 - E_THR)) * E - 70;
+      F = Math.max(f0 + 50, F1Raised);
+    }
+
+    // F2 tuning (Section 4.3.5): constrained above 2*f0
+    if (i === 1) {
+      F = Math.max(2 * f0 + 50, K * alphaS * formant.frequency);
+    }
+
+    // Amplitude correction for harmonic coincidence
+    const attenuation = computeFormantAttenuation(f0, F, i);
+    const A = dbToLinear(formant.amplitude - attenuation);
+
+    return {
+      F,
+      B: formant.bandwidth,
+      A,
+    };
+  });
+
+  // Compute anti-formant frequency (scaled by vocal tract size)
+  const F_BQ = F_BQ_BASE * alphaS;
+
+  return {
+    source: {
+      f0,
+      Fg,
+      Bg,
+      Ag,
+      Tl1,
+      Tl2,
+      An,
+    },
+    tract: {
+      formants,
+      F_BQ,
+      Q_BQ,
+    },
+  };
+}
