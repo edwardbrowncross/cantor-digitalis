@@ -1,16 +1,49 @@
 {
   "name": "cantor-digitalis",
-  "version": "1.0.0",
+  "version": "0.0.1",
+  "description": "A physically-informed source-filter model for singing voice synthesis using the Web Audio API",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "npm run build:lib",
+    "build:lib": "vite build --mode lib && tsc -p tsconfig.build.json",
+    "build:example": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build:lib"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "audio",
+    "web-audio",
+    "synthesizer",
+    "voice",
+    "singing",
+    "speech",
+    "formant",
+    "source-filter"
+  ],
+  "author": "Edward Browncross",
   "license": "ISC",
-  "description": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "homepage": "",
+  "bugs": {
+    "url": ""
+  },
   "devDependencies": {
     "typescript": "^5.9.3",
     "vite": "^6.4.1"
