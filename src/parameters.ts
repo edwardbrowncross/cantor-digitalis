@@ -33,6 +33,46 @@ export type ExternalVoiceParams = {
   isFalsetto: boolean;
 };
 
+/**
+ * Feature flags for the voice parameter conversion.
+ * All features are enabled by default (true). Set to false to disable.
+ */
+export type VoiceFeatures = {
+  /**
+   * Attenuate formant amplitudes when harmonics coincide with formant frequencies.
+   * Paper reference: Section 4.3.7
+   */
+  harmonicCoincidenceAttenuation?: boolean;
+  /**
+   * Scale formant frequencies by larynx position factor (K) and vocal tract size (αS).
+   * Paper reference: Sections 4.3.2, 4.3.3
+   */
+  formantFrequencyScaling?: boolean;
+  /**
+   * Raise F1 with vocal effort and constrain it above f₀ + 50 Hz.
+   * Paper reference: Section 4.3.4
+   */
+  f1Tuning?: boolean;
+  /**
+   * Constrain F2 above 2·f₀ + 50 Hz.
+   * Paper reference: Section 4.3.5
+   */
+  f2Tuning?: boolean;
+  /**
+   * Scale the anti-resonance frequency (F_BQ) by vocal tract size (αS).
+   * When disabled, uses nominal 4700 Hz.
+   */
+  antiResonanceScaling?: boolean;
+};
+
+const DEFAULT_FEATURES: Required<VoiceFeatures> = {
+  harmonicCoincidenceAttenuation: true,
+  formantFrequencyScaling: true,
+  f1Tuning: true,
+  f2Tuning: true,
+  antiResonanceScaling: true,
+};
+
 /** Phonation threshold - below this vocal effort, no voiced sound is produced */
 const E_THR = 0.2;
 
@@ -201,10 +241,14 @@ function computeFormantAttenuation(
  * converting perceptually meaningful high-level parameters to the low-level
  * synthesis parameters needed by the voice engine.
  *
- * Note: This function does not apply perturbations (jitter, shimmer, heartbeat).
- * Those should be applied at runtime for dynamic variation.
+ * @param params - The external voice parameters
+ * @param features - Optional feature flags to enable/disable specific behaviours (all enabled by default)
  */
-export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
+export function convertToVoiceParams(
+  params: ExternalVoiceParams,
+  features: VoiceFeatures = {}
+): VoiceParams {
+  const opts = { ...DEFAULT_FEATURES, ...features };
   const {
     pitch: P,
     pitchOffset: P0,
@@ -253,21 +297,25 @@ export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
 
   // Apply formant tuning rules and scaling
   const formants = baseFormants.map((formant: Formant, i: number) => {
-    let F = K * alphaS * formant.frequency;
+    // Base frequency, optionally scaled by K and alphaS
+    const scaleFactor = opts.formantFrequencyScaling ? K * alphaS : 1;
+    let F = scaleFactor * formant.frequency;
 
     // F1 tuning (Section 4.3.4): raised with effort, constrained above f0
-    if (i === 0) {
-      const F1Raised = K * alphaS * formant.frequency + (140 / (1 - E_THR)) * E - 70;
+    if (i === 0 && opts.f1Tuning) {
+      const F1Raised = scaleFactor * formant.frequency + (140 / (1 - E_THR)) * E - 70;
       F = Math.max(f0 + 50, F1Raised);
     }
 
     // F2 tuning (Section 4.3.5): constrained above 2*f0
-    if (i === 1) {
-      F = Math.max(2 * f0 + 50, K * alphaS * formant.frequency);
+    if (i === 1 && opts.f2Tuning) {
+      F = Math.max(2 * f0 + 50, scaleFactor * formant.frequency);
     }
 
     // Amplitude correction for harmonic coincidence
-    const attenuation = computeFormantAttenuation(f0, F, i);
+    const attenuation = opts.harmonicCoincidenceAttenuation
+      ? computeFormantAttenuation(f0, F, i)
+      : 0;
     const A = dbToLinear(formant.amplitude - attenuation);
 
     return {
@@ -277,8 +325,8 @@ export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
     };
   });
 
-  // Compute anti-formant frequency (scaled by vocal tract size)
-  const F_BQ = F_BQ_BASE * alphaS;
+  // Compute anti-formant frequency (optionally scaled by vocal tract size)
+  const F_BQ = opts.antiResonanceScaling ? F_BQ_BASE * alphaS : F_BQ_BASE;
 
   return {
     source: {

@@ -1,5 +1,5 @@
 import { Voice } from "./nodes/voice";
-import { convertToVoiceParams, ExternalVoiceParams } from "./parameters";
+import { convertToVoiceParams, ExternalVoiceParams, VoiceFeatures } from "./parameters";
 
 let audioCtx: AudioContext | null = null;
 let voice: Voice | null = null;
@@ -21,6 +21,14 @@ const params: ExternalVoiceParams = {
   roughness: 0.01,
   vocalTractSize: 0.28,
   isFalsetto: false,
+};
+
+const features: Required<VoiceFeatures> = {
+  harmonicCoincidenceAttenuation: true,
+  formantFrequencyScaling: true,
+  f1Tuning: true,
+  f2Tuning: true,
+  antiResonanceScaling: true,
 };
 
 function midiToNoteName(midi: number): string {
@@ -73,7 +81,7 @@ function createSlider(
 
 function updateVoice() {
   if (voice) {
-    const voiceParams = convertToVoiceParams(params);
+    const voiceParams = convertToVoiceParams(params, features);
     voice.update(voiceParams);
   }
 }
@@ -179,7 +187,7 @@ async function startAudio() {
   }
 
   if (!voice) {
-    const voiceParams = convertToVoiceParams(params);
+    const voiceParams = convertToVoiceParams(params, features);
     voice = await Voice.create(audioCtx, voiceParams);
     voice.out.connect(masterGain!);
   }
@@ -269,23 +277,101 @@ function createUI() {
     updateVoice();
   });
 
+  // Helper to create a checkbox row
+  function createCheckbox(
+    container: HTMLElement,
+    id: string,
+    label: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void
+  ): HTMLInputElement {
+    const row = document.createElement("div");
+    row.className = "checkbox-row";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = id;
+    checkbox.checked = checked;
+    checkbox.addEventListener("change", () => {
+      onChange(checkbox.checked);
+    });
+    const labelEl = document.createElement("label");
+    labelEl.htmlFor = id;
+    labelEl.textContent = label;
+    row.appendChild(checkbox);
+    row.appendChild(labelEl);
+    container.appendChild(row);
+    return checkbox;
+  }
+
   // Falsetto checkbox
-  const checkboxRow = document.createElement("div");
-  checkboxRow.className = "checkbox-row";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = "falsetto";
-  checkbox.checked = params.isFalsetto;
-  checkbox.addEventListener("change", () => {
-    params.isFalsetto = checkbox.checked;
+  createCheckbox(controls, "falsetto", "Falsetto (M=2)", params.isFalsetto, (checked) => {
+    params.isFalsetto = checked;
     updateVoice();
   });
-  const checkboxLabel = document.createElement("label");
-  checkboxLabel.htmlFor = "falsetto";
-  checkboxLabel.textContent = "Falsetto (M=2)";
-  checkboxRow.appendChild(checkbox);
-  checkboxRow.appendChild(checkboxLabel);
-  controls.appendChild(checkboxRow);
+
+  // Feature flags section
+  const featuresSection = document.createElement("div");
+  featuresSection.className = "features-section";
+  const featuresHeader = document.createElement("h3");
+  featuresHeader.textContent = "Features";
+  featuresSection.appendChild(featuresHeader);
+
+  createCheckbox(
+    featuresSection,
+    "harmonicCoincidenceAttenuation",
+    "Harmonic coincidence attenuation",
+    features.harmonicCoincidenceAttenuation,
+    (checked) => {
+      features.harmonicCoincidenceAttenuation = checked;
+      updateVoice();
+    }
+  );
+
+  createCheckbox(
+    featuresSection,
+    "formantFrequencyScaling",
+    "Formant frequency scaling (K, αS)",
+    features.formantFrequencyScaling,
+    (checked) => {
+      features.formantFrequencyScaling = checked;
+      updateVoice();
+    }
+  );
+
+  createCheckbox(
+    featuresSection,
+    "f1Tuning",
+    "F1 tuning (effort + f₀ constraint)",
+    features.f1Tuning,
+    (checked) => {
+      features.f1Tuning = checked;
+      updateVoice();
+    }
+  );
+
+  createCheckbox(
+    featuresSection,
+    "f2Tuning",
+    "F2 tuning (2·f₀ constraint)",
+    features.f2Tuning,
+    (checked) => {
+      features.f2Tuning = checked;
+      updateVoice();
+    }
+  );
+
+  createCheckbox(
+    featuresSection,
+    "antiResonanceScaling",
+    "Anti-resonance scaling (αS)",
+    features.antiResonanceScaling,
+    (checked) => {
+      features.antiResonanceScaling = checked;
+      updateVoice();
+    }
+  );
+
+  controls.appendChild(featuresSection);
 
   // Buttons
   const buttons = document.createElement("div");
