@@ -50,7 +50,19 @@ voice.update(newSynthParams);
 voice.stop();
 ```
 
-## Parameters
+## Parameter Architecture
+
+The synthesizer uses two layers of parameters:
+
+**Perceptual Parameters** (shown in the first table below) are high-level, intuitive controls like `pitch`, `vocalEffort`, and `vowelHeight`. These map to how we perceive and describe voices.
+
+**Synth Parameters** are the low-level values that directly control the audio processing: fundamental frequency (`f0`), formant frequencies (`F1`–`F6`), glottal formant bandwidth (`Bg`), spectral tilt (`Tl1`, `Tl2`), etc. These correspond to the physical and acoustic properties described in the research paper.
+
+The conversion from perceptual parameters to synth parameters is described in section 4 of the referenced paper. For most use cases, set perceptual parameters and convert these to synth parameters via `generateSynthParams()`. For lower-level control of the sound, access the synth-level parameters directly.
+
+Additionally, the synthesizer exposes `AudioParam` objects for the synth-level parameters for sample-accurate automation. Theses can be used for sample-accurate automation (vibrato, pitch glides, amplitude envelopes etc.)
+
+### Perceptual Parameters
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
@@ -64,6 +76,34 @@ voice.stop();
 | `roughness` | 0–1 | Jitter and shimmer |
 | `vocalTractSize` | 0–1 | Vocal tract scaling (child to giant) |
 | `isFalsetto` | bool | Laryngeal mechanism (M1/M2) |
+
+### Synth Parameters
+
+These low-level parameters directly control the audio processing and correspond to the physical/acoustic properties in the research paper.
+
+#### Voice Source
+
+| Parameter | Symbol | Unit | Description |
+|-----------|--------|------|-------------|
+| `f0` | f₀ | Hz | Fundamental frequency (pitch) |
+| `Fg` | Fg | Hz | Glottal formant centre frequency |
+| `Bg` | Bg | Hz | Glottal formant bandwidth |
+| `Ag` | Ag | — | Voice source amplitude |
+| `Tl1` | Tl₁ | dB | Spectral tilt (1st stage attenuation at 3 kHz) |
+| `Tl2` | Tl₂ | dB | Spectral tilt (2nd stage attenuation at 3 kHz) |
+| `An` | An | — | Aspiration noise amplitude |
+| `jitterDepth` | — | — | Pitch perturbation depth (0–0.3) |
+| `shimmerDepth` | — | — | Amplitude perturbation depth (0–1) |
+
+#### Vocal Tract
+
+| Parameter | Symbol | Unit | Description |
+|-----------|--------|------|-------------|
+| `F` (formants[0–5]) | F1–F6 | Hz | Formant centre frequencies |
+| `B` (formants[0–5]) | B1–B6 | Hz | Formant bandwidths |
+| `A` (formants[0–5]) | A1–A6 | — | Formant amplitudes |
+| `F_BQ` | F_BQ | Hz | Anti-resonance centre frequency (~4700 Hz) |
+| `Q_BQ` | Q_BQ | — | Anti-resonance quality factor (fixed 2.5) |
 
 ## Direct AudioParam Control
 
@@ -81,6 +121,36 @@ voice.tract.formants[0].F.linearRampToValueAtTime(800, now + 0.3);
 
 // Amplitude envelope
 voice.source.glottalFormantNode.Ag.setTargetAtTime(0, now, 0.1);
+```
+
+## Component Architecture
+
+For advanced use cases, the individual components of the synthesis pipeline can be instantiated and connected independently. Each component corresponds to a module described in the research paper.
+
+```
+Voice
+├── source: GlottalFlowDerivative          §3.2   Voice source model
+│   ├── pulseTrainNode: PulseTrain         §3.1   Periodic impulse generator
+│   ├── glottalFormantNode: GlottalFormant §3.2.1 Glottal pulse shaping filter
+│   ├── spectralTiltNode: SpectralTilt     §3.2.2 High-frequency roll-off
+│   └── noiseSourceNode: NoiseSource       §3.2.3 Aspiration noise
+├── tract: VocalTract                      §3.3   Vocal tract model
+│   ├── formants[0–5]: FormantResonator    §3.3.1 Parallel resonant filters
+│   └── antiResonanceNode: AntiResonance   §3.3.2 Hypo-pharynx notch filter
+└── outputGain: Gain
+```
+
+```typescript
+import { PulseTrain, FormantResonator } from "cantor-digitalis";
+
+// Create individual components
+const pulseTrain = await PulseTrain.create(ctx, { f0: 220, jitterDepth: 0, shimmerDepth: 0 });
+const formant = await FormantResonator.create(ctx, { F: 500, B: 100, A: 1 });
+
+// Connect manually
+pulseTrain.out.connect(formant.in);
+formant.out.connect(ctx.destination);
+pulseTrain.start();
 ```
 
 ## Live Demo
