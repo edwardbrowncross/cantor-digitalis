@@ -24,6 +24,13 @@ export type SpectralTiltParams = {
  */
 const processorCode = `
 class SpectralTiltProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "Tl1", defaultValue: 0, minValue: 0, maxValue: 50, automationRate: "k-rate" },
+      { name: "Tl2", defaultValue: 0, minValue: 0, maxValue: 30, automationRate: "k-rate" }
+    ];
+  }
+
   constructor() {
     super();
     // Filter coefficients for two stages
@@ -36,11 +43,13 @@ class SpectralTiltProcessor extends AudioWorkletProcessor {
     this.y1_prev = 0;  // Previous output of stage 1
     this.y2_prev = 0;  // Previous output of stage 2
 
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateCoefficients') {
-        this.updateCoefficients(event.data.Tl1, event.data.Tl2);
-      }
-    };
+    // Cache last parameter values for change detection
+    this.lastTl1 = -1;
+    this.lastTl2 = -1;
+
+    // Pre-compute cosOmega since it's constant for a given sample rate
+    const Ts = 1 / sampleRate;
+    this.cosOmega = Math.cos(2 * Math.PI * 3000 * Ts);
   }
 
   /**
@@ -53,16 +62,12 @@ class SpectralTiltProcessor extends AudioWorkletProcessor {
       return [0, 1];
     }
 
-    const Ts = 1 / sampleRate;
-    const omega = 2 * Math.PI * 3000 * Ts;
-    const cosOmega = Math.cos(omega);
-
     // Power ratio at 3000 Hz (10^(Tl/10) is the attenuation factor)
     const attenuationRatio = Math.pow(10, Tl / 10);
 
     // Compute ν from Section 3.2.2
     // νᵢ = 1 + (1 - cos(ω)) / (10^(Tlᵢ/10) - 1)
-    const nu = 1 + (1 - cosOmega) / (attenuationRatio - 1);
+    const nu = 1 + (1 - this.cosOmega) / (attenuationRatio - 1);
 
     // Compute pole coefficient: a = ν - √(ν² - 1)
     // This ensures 0 < a < 1 for stability
@@ -72,17 +77,26 @@ class SpectralTiltProcessor extends AudioWorkletProcessor {
     return [a, g];
   }
 
-  updateCoefficients(Tl1, Tl2) {
-    [this.a1, this.g1] = this.computeStageCoefficients(Tl1);
-    [this.a2, this.g2] = this.computeStageCoefficients(Tl2);
-  }
-
   process(inputs, outputs, parameters) {
     const input = inputs[0]?.[0];
     const output = outputs[0]?.[0];
 
     if (!input || !output) {
       return true;
+    }
+
+    // k-rate parameters (single value per block)
+    const Tl1 = parameters.Tl1[0];
+    const Tl2 = parameters.Tl2[0];
+
+    // Recompute coefficients if parameters changed
+    if (Tl1 !== this.lastTl1) {
+      [this.a1, this.g1] = this.computeStageCoefficients(Tl1);
+      this.lastTl1 = Tl1;
+    }
+    if (Tl2 !== this.lastTl2) {
+      [this.a2, this.g2] = this.computeStageCoefficients(Tl2);
+      this.lastTl2 = Tl2;
     }
 
     for (let i = 0; i < input.length; i++) {
@@ -166,14 +180,26 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  * Where Ep is the perturbed vocal effort (E with heartbeat and slow perturbations).
  */
 export class SpectralTilt implements Node<SpectralTiltParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(_ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
     this.out = workletNode;
+  }
+
+  /** First stage spectral tilt attenuation AudioParam (k-rate, 0-50 dB at 3kHz) */
+  get Tl1(): AudioParam {
+    return this.workletNode.parameters.get("Tl1")!;
+  }
+
+  /** Second stage spectral tilt attenuation AudioParam (k-rate, 0-30 dB at 3kHz) */
+  get Tl2(): AudioParam {
+    return this.workletNode.parameters.get("Tl2")!;
   }
 
   /**
@@ -196,14 +222,11 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
 
   /**
    * Updates the spectral tilt parameters.
-   * Sends new coefficients to the worklet processor for real-time updates.
+   * Sets AudioParams via setTargetAtTime for smooth transitions.
    */
   update(params: SpectralTiltParams): void {
-    this.workletNode.port.postMessage({
-      type: "updateCoefficients",
-      Tl1: params.Tl1,
-      Tl2: params.Tl2,
-    });
+    this.Tl1.setTargetAtTime(params.Tl1, this.ctx.currentTime, 0.02);
+    this.Tl2.setTargetAtTime(params.Tl2, this.ctx.currentTime, 0.02);
   }
 
   destroy(): void {

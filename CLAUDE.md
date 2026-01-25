@@ -22,8 +22,189 @@ Audio processing components live in `src/nodes/`. Some nodes are low level utili
 
 - **Interface**: All nodes implement `Node<T>` from `types.ts`, providing `update(params)`, `destroy()`, and `in`/`out` AudioNode connection points.
 - **Factory**: Nodes use an async static `create(ctx, params)` method rather than direct construction, allowing for async setup of Web Audio resources.
-- **AudioParams**: Where applicable, nodes expose underlying `AudioParam` properties for sample-accurate automation.
+- **AudioParams**: All AudioWorklet-based nodes expose their parameters as `AudioParam` properties for sample-accurate automation. The `update()` method uses `setTargetAtTime()` internally
 - **Starting and Stopping**: Nodes that generate sound (e.g., oscillators or nodes that are built on top of oscillators) start automatically on creation and can be started and stopped via their own methods.
+
+### AudioParam Automation Rates
+
+Parameters use either a-rate (sample-accurate, per-sample values) or k-rate (per-render-quantum, ~128 samples):
+
+| Rate | Use Case | Parameters |
+|------|----------|------------|
+| **a-rate** | Pitch/amplitude modulation needing sample accuracy | `f0`, `Ag`, `An` |
+| **k-rate** | Filter parameters that change smoothly | `Fg`, `Bg`, `Tl1`, `Tl2`, `F`, `B`, `A`, `Q`, `jitterDepth`, `shimmerDepth` |
+
+## Node Hierarchy
+
+The voice synthesizer is built from a hierarchy of nodes. Leaf nodes are AudioWorklet-based processors, while composite nodes combine multiple children.
+
+```
+Voice
+├── source: GlottalFlowDerivative
+│   ├── pulseTrainNode: PulseTrain
+│   │   └── AudioParams: f0, jitterDepth, shimmerDepth
+│   ├── glottalFormantNode: GlottalFormant
+│   │   └── AudioParams: Fg, Bg, Ag
+│   ├── spectralTiltNode: SpectralTilt
+│   │   └── AudioParams: Tl1, Tl2
+│   └── noiseSourceNode: NoiseSource
+│       └── AudioParams: An
+├── tract: VocalTract
+│   ├── formants[0..5]: FormantResonator
+│   │   └── AudioParams: F, B, A
+│   └── antiResonanceNode: AntiResonance
+│       └── AudioParams: F, Q
+└── outputGain: Gain
+    └── AudioParams: gain
+```
+
+### Accessing AudioParams
+
+Composite nodes expose their children via getters, allowing hierarchical access to any AudioParam:
+
+```typescript
+// Access pulse train frequency
+voice.source.pulseTrainNode.f0
+
+// Access first formant frequency
+voice.tract.formants[0].F
+
+// Access anti-resonance Q factor
+voice.tract.antiResonanceNode.Q
+```
+
+## Instantiation and Control Examples
+
+### Creating a Voice
+
+```typescript
+import { Voice } from "./nodes/voice";
+
+const ctx = new AudioContext();
+
+const voice = await Voice.create(ctx, {
+  source: {
+    f0: 220,
+    Fg: 110,
+    Bg: 50,
+    Ag: 1,
+    Tl1: 10,
+    Tl2: 5,
+    An: 0,
+    jitterDepth: 0,
+    shimmerDepth: 0,
+  },
+  tract: {
+    formants: [
+      { F: 800, B: 80, A: 1 },
+      { F: 1200, B: 90, A: 0.5 },
+      { F: 2500, B: 120, A: 0.3 },
+      { F: 3500, B: 150, A: 0.2 },
+      { F: 4500, B: 200, A: 0.1 },
+      { F: 5500, B: 250, A: 0.05 },
+    ],
+    F_BQ: 4700,
+    Q_BQ: 2.5,
+  },
+  outputGain: 0.5,
+});
+
+voice.out.connect(ctx.destination);
+voice.start();
+```
+
+### Using update() for Simple Control
+
+The `update()` method provides a simple way to change all parameters at once:
+
+```typescript
+voice.update({
+  source: { f0: 440, Fg: 220, Bg: 50, Ag: 1, Tl1: 8, Tl2: 4, An: 0.1, jitterDepth: 0.02, shimmerDepth: 0.05 },
+  tract: {
+    formants: [
+      { F: 300, B: 60, A: 1 },
+      { F: 2300, B: 100, A: 0.4 },
+      // ... remaining formants
+    ],
+    F_BQ: 4700,
+    Q_BQ: 2.5,
+  },
+});
+```
+
+### Direct AudioParam Access for Automation
+
+For sample-accurate control, access AudioParams directly:
+
+```typescript
+const now = ctx.currentTime;
+
+// Instant change
+voice.source.pulseTrainNode.f0.setValueAtTime(440, now);
+
+// Linear ramp (pitch glide over 1 second)
+voice.source.pulseTrainNode.f0.setValueAtTime(440, now);
+voice.source.pulseTrainNode.f0.linearRampToValueAtTime(880, now + 1);
+
+// Exponential ramp (more natural for pitch)
+voice.source.pulseTrainNode.f0.setValueAtTime(440, now);
+voice.source.pulseTrainNode.f0.exponentialRampToValueAtTime(880, now + 1);
+
+// Smooth decay (amplitude fade-out with time constant 0.1s)
+voice.source.glottalFormantNode.Ag.setTargetAtTime(0, now, 0.1);
+
+// Formant sweep
+voice.tract.formants[0].F.setValueAtTime(300, now);
+voice.tract.formants[0].F.linearRampToValueAtTime(800, now + 0.5);
+```
+
+### Connecting LFOs for Modulation
+
+AudioParams can be modulated by connecting audio-rate signals:
+
+```typescript
+// Create vibrato LFO (6 Hz, ±10 Hz depth)
+const vibrato = ctx.createOscillator();
+vibrato.frequency.value = 6;
+const vibratoGain = ctx.createGain();
+vibratoGain.gain.value = 10; // ±10 Hz
+
+vibrato.connect(vibratoGain);
+vibratoGain.connect(voice.source.pulseTrainNode.f0);
+vibrato.start();
+
+// The f0 AudioParam now has vibrato applied on top of its base value
+voice.source.pulseTrainNode.f0.setValueAtTime(440, ctx.currentTime);
+```
+
+### Creating Individual Nodes
+
+Lower-level nodes can be created and used independently:
+
+```typescript
+import { PulseTrain } from "./nodes/pulse-train";
+import { FormantResonator } from "./nodes/formant-resonator";
+
+// Create a pulse train
+const pulseTrain = await PulseTrain.create(ctx, {
+  f0: 220,
+  jitterDepth: 0.01,
+  shimmerDepth: 0.02,
+});
+
+// Create a formant filter
+const formant = await FormantResonator.create(ctx, {
+  F: 500,
+  B: 100,
+  A: 1,
+});
+
+// Connect them
+pulseTrain.out.connect(formant.in);
+formant.out.connect(ctx.destination);
+
+pulseTrain.start();
+```
 
 ## Key voice parameters
 

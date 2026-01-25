@@ -21,50 +21,31 @@ export type AntiResonanceParams = {
  */
 const processorCode = `
 class AntiResonanceProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "F", defaultValue: 4700, minValue: 1000, maxValue: 10000, automationRate: "k-rate" },
+      { name: "Q", defaultValue: 2.5, minValue: 0.5, maxValue: 20, automationRate: "k-rate" }
+    ];
+  }
+
   constructor() {
     super();
-    // Biquad coefficients (normalized so a0 = 1)
-    this.b0 = 1;
-    this.b1 = 0;
-    this.b2 = 1;
-    this.a1 = 0;
-    this.a2 = 0;
-
     // Filter state (delay line)
     this.x1 = 0;
     this.x2 = 0;
     this.y1 = 0;
     this.y2 = 0;
 
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateCoefficients') {
-        this.updateCoefficients(event.data.F, event.data.Q);
-      }
-    };
-  }
+    // Cached parameter values for change detection
+    this.lastF = -1;
+    this.lastQ = -1;
 
-  updateCoefficients(F, Q) {
-    const Ts = 1 / sampleRate;
-    const omega = 2 * Math.PI * F * Ts;
-
-    // Intermediate coefficients from the paper
-    const alpha = Math.sin(omega) / (2 * Q);
-    const beta = -2 * Math.cos(omega);
-
-    // Normalize by dividing by (1 + alpha) so that a0 = 1
-    const a0 = 1 + alpha;
-
-    // Numerator coefficients (feedforward)
-    // From: (1 + β*z⁻¹ + z⁻²) / a0
-    this.b0 = 1 / a0;
-    this.b1 = beta / a0;
-    this.b2 = 1 / a0;
-
-    // Denominator coefficients (feedback), normalized
-    // From: ((1 + α) + β*z⁻¹ + (1 - α)*z⁻²) / a0
-    // a0/a0 = 1 (implicit), a1 = β/a0, a2 = (1 - α)/a0
-    this.a1 = beta / a0;
-    this.a2 = (1 - alpha) / a0;
+    // Cached coefficients
+    this.b0 = 1;
+    this.b1 = 0;
+    this.b2 = 1;
+    this.a1 = 0;
+    this.a2 = 0;
   }
 
   process(inputs, outputs, parameters) {
@@ -73,6 +54,38 @@ class AntiResonanceProcessor extends AudioWorkletProcessor {
 
     if (!input || !output) {
       return true;
+    }
+
+    // k-rate parameters (single value per block)
+    const F = parameters.F[0];
+    const Q = parameters.Q[0];
+
+    // Recompute coefficients if any parameter changed
+    if (F !== this.lastF || Q !== this.lastQ) {
+      const Ts = 1 / sampleRate;
+      const omega = 2 * Math.PI * F * Ts;
+
+      // Intermediate coefficients from the paper
+      const alpha = Math.sin(omega) / (2 * Q);
+      const beta = -2 * Math.cos(omega);
+
+      // Normalize by dividing by (1 + alpha) so that a0 = 1
+      const a0 = 1 + alpha;
+
+      // Numerator coefficients (feedforward)
+      // From: (1 + β*z⁻¹ + z⁻²) / a0
+      this.b0 = 1 / a0;
+      this.b1 = beta / a0;
+      this.b2 = 1 / a0;
+
+      // Denominator coefficients (feedback), normalized
+      // From: ((1 + α) + β*z⁻¹ + (1 - α)*z⁻²) / a0
+      // a0/a0 = 1 (implicit), a1 = β/a0, a2 = (1 - α)/a0
+      this.a1 = beta / a0;
+      this.a2 = (1 - alpha) / a0;
+
+      this.lastF = F;
+      this.lastQ = Q;
     }
 
     for (let i = 0; i < input.length; i++) {
@@ -149,14 +162,26 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  *   - Q (anti-formant quality factor) — fixed at 2.5 in the paper
  */
 export class AntiResonance implements Node<AntiResonanceParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(_ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
     this.out = workletNode;
+  }
+
+  /** Anti-formant centre frequency AudioParam (k-rate, 1000-10000 Hz) */
+  get F(): AudioParam {
+    return this.workletNode.parameters.get("F")!;
+  }
+
+  /** Anti-formant quality factor AudioParam (k-rate, 0.5-20) */
+  get Q(): AudioParam {
+    return this.workletNode.parameters.get("Q")!;
   }
 
   /**
@@ -179,14 +204,11 @@ export class AntiResonance implements Node<AntiResonanceParams> {
 
   /**
    * Updates the anti-resonance parameters.
-   * Sends new coefficients to the worklet processor for real-time updates.
+   * Sets AudioParams via setTargetAtTime for smooth transitions.
    */
   update(params: AntiResonanceParams): void {
-    this.workletNode.port.postMessage({
-      type: "updateCoefficients",
-      F: params.F,
-      Q: params.Q,
-    });
+    this.F.setTargetAtTime(params.F, this.ctx.currentTime, 0.02);
+    this.Q.setTargetAtTime(params.Q, this.ctx.currentTime, 0.02);
   }
 
   destroy(): void {

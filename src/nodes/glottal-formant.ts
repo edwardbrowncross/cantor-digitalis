@@ -21,45 +21,29 @@ export type GlottalFormantParams = {
  */
 const processorCode = `
 class GlottalFormantProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "Fg", defaultValue: 110, minValue: 20, maxValue: 2000, automationRate: "a-rate" },
+      { name: "Bg", defaultValue: 50, minValue: 10, maxValue: 500, automationRate: "a-rate" },
+      { name: "Ag", defaultValue: 1, minValue: 0, maxValue: 10, automationRate: "a-rate" }
+    ];
+  }
+
   constructor() {
     super();
-    // Biquad coefficients
-    this.b0 = 0;
-    this.b1 = 0;
-    this.b2 = 0;
-    this.a1 = 0;
-    this.a2 = 0;
-
     // Filter state (delay line)
     this.x1 = 0;
     this.x2 = 0;
     this.y1 = 0;
     this.y2 = 0;
 
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateCoefficients') {
-        this.updateCoefficients(event.data.Fg, event.data.Bg, event.data.Ag);
-      }
-    };
-  }
-
-  updateCoefficients(Fg, Bg, Ag) {
-    const Ts = 1 / sampleRate;
-
-    // Pole radius and angle
-    const R = Math.exp(-Math.PI * Bg * Ts);
-    const theta = 2 * Math.PI * Fg * Ts;
-
-    // Numerator coefficients (feedforward)
-    // From: -Ag * z^{-1} * (1 - z^{-1}) = -Ag*z^{-1} + Ag*z^{-2}
-    this.b0 = 0;
-    this.b1 = -Ag;
-    this.b2 = Ag;
-
-    // Denominator coefficients (feedback)
-    // From: 1 - 2R*cos(θ)*z^{-1} + R²*z^{-2}
-    this.a1 = -2 * R * Math.cos(theta);
-    this.a2 = R * R;
+    // Cached coefficient values to avoid recomputing when unchanged
+    this.lastFg = -1;
+    this.lastBg = -1;
+    this.R = 0;
+    this.cosTheta = 0;
+    this.a1 = 0;
+    this.a2 = 0;
   }
 
   process(inputs, outputs, parameters) {
@@ -70,11 +54,35 @@ class GlottalFormantProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    const Ts = 1 / sampleRate;
+    // k-rate parameters (single value per block)
+    const Fg = parameters.Fg[0];
+    const Bg = parameters.Bg[0];
+
+    // Recompute filter coefficients if Fg or Bg changed
+    if (Fg !== this.lastFg || Bg !== this.lastBg) {
+      this.R = Math.exp(-Math.PI * Bg * Ts);
+      const theta = 2 * Math.PI * Fg * Ts;
+      this.cosTheta = Math.cos(theta);
+      this.a1 = -2 * this.R * this.cosTheta;
+      this.a2 = this.R * this.R;
+      this.lastFg = Fg;
+      this.lastBg = Bg;
+    }
+
     for (let i = 0; i < input.length; i++) {
+      // a-rate: per-sample value for Ag
+      const Ag = parameters.Ag.length > 1 ? parameters.Ag[i] : parameters.Ag[0];
+
       const x0 = input[i];
 
-      // Direct Form I biquad
-      const y0 = this.b0 * x0 + this.b1 * this.x1 + this.b2 * this.x2
+      // Numerator coefficients (feedforward) depend on Ag
+      // From: -Ag * z^{-1} * (1 - z^{-1}) = -Ag*z^{-1} + Ag*z^{-2}
+      const b1 = -Ag;
+      const b2 = Ag;
+
+      // Direct Form I biquad (b0 is always 0)
+      const y0 = b1 * this.x1 + b2 * this.x2
                  - this.a1 * this.y1 - this.a2 * this.y2;
 
       // Update delay line
@@ -146,14 +154,31 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  * are computed from T (tenseness), E (vocal effort), and M (laryngeal mechanism).
  */
 export class GlottalFormant implements Node<GlottalFormantParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(_ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
     this.out = workletNode;
+  }
+
+  /** Glottal formant centre frequency AudioParam (a-rate, 20-2000 Hz) */
+  get Fg(): AudioParam {
+    return this.workletNode.parameters.get("Fg")!;
+  }
+
+  /** Glottal formant bandwidth AudioParam (a-rate, 10-500 Hz) */
+  get Bg(): AudioParam {
+    return this.workletNode.parameters.get("Bg")!;
+  }
+
+  /** Source amplitude AudioParam (a-rate, 0-10) */
+  get Ag(): AudioParam {
+    return this.workletNode.parameters.get("Ag")!;
   }
 
   /**
@@ -176,15 +201,12 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
 
   /**
    * Updates the glottal formant parameters.
-   * Sends new coefficients to the worklet processor for real-time updates.
+   * Sets AudioParams via setTargetAtTime for smooth transitions.
    */
   update(params: GlottalFormantParams): void {
-    this.workletNode.port.postMessage({
-      type: "updateCoefficients",
-      Fg: params.Fg,
-      Bg: params.Bg,
-      Ag: params.Ag,
-    });
+    this.Fg.setTargetAtTime(params.Fg, this.ctx.currentTime, 0.02);
+    this.Bg.setTargetAtTime(params.Bg, this.ctx.currentTime, 0.02);
+    this.Ag.setTargetAtTime(params.Ag, this.ctx.currentTime, 0.02);
   }
 
   destroy(): void {

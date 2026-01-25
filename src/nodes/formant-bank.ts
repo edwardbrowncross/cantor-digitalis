@@ -118,6 +118,17 @@ export class FormantBank implements Node<FormantBankParams> {
     return this.resonators.length;
   }
 
+  /**
+   * Returns the array of formant resonators for direct AudioParam access.
+   *
+   * Example usage:
+   *   formantBank.formants[0].F.setValueAtTime(800, ctx.currentTime);
+   *   formantBank.formants[1].B.linearRampToValueAtTime(100, ctx.currentTime + 0.1);
+   */
+  get formants(): readonly FormantResonator[] {
+    return this.resonators;
+  }
+
   destroy(): void {
     // Disconnect routing nodes
     this.inputGain.disconnect();

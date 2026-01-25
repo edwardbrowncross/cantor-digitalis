@@ -13,18 +13,17 @@ export type NoiseSourceParams = {
  */
 const processorCode = `
 class NoiseSourceProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "An", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "a-rate" }
+    ];
+  }
+
   constructor() {
     super();
-    this.amplitude = 0;
     // Box-Muller spare value
     this.hasSpare = false;
     this.spare = 0;
-
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateAmplitude') {
-        this.amplitude = event.data.An;
-      }
-    };
   }
 
   /**
@@ -59,7 +58,9 @@ class NoiseSourceProcessor extends AudioWorkletProcessor {
     }
 
     for (let i = 0; i < output.length; i++) {
-      output[i] = this.amplitude * this.gaussianRandom();
+      // a-rate: per-sample value for An
+      const An = parameters.An.length > 1 ? parameters.An[i] : parameters.An[0];
+      output[i] = An * this.gaussianRandom();
     }
 
     return true;
@@ -115,6 +116,7 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  * and lowpass filters using native BiquadFilterNodes.
  */
 export class NoiseSource implements Node<NoiseSourceParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   private highpassFilter: BiquadFilterNode;
   private lowpassFilter: BiquadFilterNode;
@@ -123,15 +125,21 @@ export class NoiseSource implements Node<NoiseSourceParams> {
   public out: AudioNode;
 
   private constructor(
-    _ctx: AudioContext,
+    ctx: AudioContext,
     workletNode: AudioWorkletNode,
     highpassFilter: BiquadFilterNode,
     lowpassFilter: BiquadFilterNode
   ) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.highpassFilter = highpassFilter;
     this.lowpassFilter = lowpassFilter;
     this.out = lowpassFilter;
+  }
+
+  /** Noise amplitude AudioParam (a-rate, 0-1) */
+  get An(): AudioParam {
+    return this.workletNode.parameters.get("An")!;
   }
 
   /**
@@ -173,13 +181,10 @@ export class NoiseSource implements Node<NoiseSourceParams> {
 
   /**
    * Updates the noise source amplitude.
-   * Sends new amplitude to the worklet processor for real-time updates.
+   * Sets AudioParam via setTargetAtTime for smooth transitions.
    */
   update(params: NoiseSourceParams): void {
-    this.workletNode.port.postMessage({
-      type: "updateAmplitude",
-      An: params.An,
-    });
+    this.An.setTargetAtTime(params.An, this.ctx.currentTime, 0.02);
   }
 
   destroy(): void {

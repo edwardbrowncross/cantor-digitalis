@@ -1,6 +1,6 @@
 import type { Node } from "./types";
 import { FormantBank } from "./formant-bank";
-import { FormantResonatorParams } from "./formant-resonator";
+import { FormantResonator, FormantResonatorParams } from "./formant-resonator";
 import { AntiResonance } from "./anti-resonance";
 
 export type VocalTractParams = {
@@ -96,6 +96,28 @@ export class VocalTract implements Node<VocalTractParams> {
    */
   get formantCount(): number {
     return this.formantBank.count;
+  }
+
+  /**
+   * Returns the array of formant resonators for direct AudioParam access.
+   *
+   * Example usage:
+   *   vocalTract.formants[0].F.setValueAtTime(800, ctx.currentTime);
+   *   vocalTract.formants[2].B.linearRampToValueAtTime(100, ctx.currentTime + 0.1);
+   */
+  get formants(): readonly FormantResonator[] {
+    return this.formantBank.formants;
+  }
+
+  /**
+   * Returns the anti-resonance node for direct AudioParam access.
+   *
+   * Example usage:
+   *   vocalTract.antiResonanceNode.F.setValueAtTime(4500, ctx.currentTime);
+   *   vocalTract.antiResonanceNode.Q.setValueAtTime(3, ctx.currentTime);
+   */
+  get antiResonanceNode(): AntiResonance {
+    return this.antiResonance;
   }
 
   destroy(): void {

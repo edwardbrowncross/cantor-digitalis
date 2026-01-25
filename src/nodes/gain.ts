@@ -24,7 +24,7 @@ export class Gain implements Node<GainParams> {
   }
 
   update(params: GainParams) {
-    this.gainNode.gain.setValueAtTime(params.gain, this.ctx.currentTime);
+    this.gainNode.gain.setTargetAtTime(params.gain, this.ctx.currentTime, 0.02);
   }
 
   destroy() {

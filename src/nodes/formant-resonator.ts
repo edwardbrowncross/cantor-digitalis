@@ -23,48 +23,32 @@ export type FormantResonatorParams = {
  */
 const processorCode = `
 class FormantResonatorProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "F", defaultValue: 500, minValue: 100, maxValue: 8000, automationRate: "a-rate" },
+      { name: "B", defaultValue: 100, minValue: 20, maxValue: 1000, automationRate: "a-rate" },
+      { name: "A", defaultValue: 1, minValue: 0, maxValue: 10, automationRate: "a-rate" }
+    ];
+  }
+
   constructor() {
     super();
-    // Biquad coefficients
-    this.b0 = 0;
-    this.b1 = 0;
-    this.b2 = 0;
-    this.a1 = 0;
-    this.a2 = 0;
-
     // Filter state (delay line)
     this.x1 = 0;
     this.x2 = 0;
     this.y1 = 0;
     this.y2 = 0;
 
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateCoefficients') {
-        this.updateCoefficients(event.data.F, event.data.B, event.data.A);
-      }
-    };
-  }
+    // Cached parameter values for change detection
+    this.lastF = -1;
+    this.lastB = -1;
+    this.lastA = -1;
 
-  updateCoefficients(F, B, A) {
-    const Ts = 1 / sampleRate;
-
-    // Pole radius and angle
-    const R = Math.exp(-Math.PI * B * Ts);
-    const theta = 2 * Math.PI * F * Ts;
-
-    // Gain scaling factor
-    const g = 1 - R;
-
-    // Numerator coefficients (feedforward)
-    // From: A * g * (1 - R*z^{-2}) = A*g + 0*z^{-1} - A*g*R*z^{-2}
-    this.b0 = A * g;
-    this.b1 = 0;
-    this.b2 = -A * g * R;
-
-    // Denominator coefficients (feedback)
-    // From: 1 - 2R*cos(θ)*z^{-1} + R²*z^{-2}
-    this.a1 = -2 * R * Math.cos(theta);
-    this.a2 = R * R;
+    // Cached coefficients
+    this.b0 = 0;
+    this.b2 = 0;
+    this.a1 = 0;
+    this.a2 = 0;
   }
 
   process(inputs, outputs, parameters) {
@@ -75,11 +59,42 @@ class FormantResonatorProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    // a-rate parameters (per-sample values)
+    const F = parameters.F[0];
+    const B = parameters.B[0];
+    const A = parameters.A[0];
+
+    // Recompute coefficients if any parameter changed
+    if (F !== this.lastF || B !== this.lastB || A !== this.lastA) {
+      const Ts = 1 / sampleRate;
+
+      // Pole radius and angle
+      const R = Math.exp(-Math.PI * B * Ts);
+      const theta = 2 * Math.PI * F * Ts;
+
+      // Gain scaling factor
+      const g = 1 - R;
+
+      // Numerator coefficients (feedforward)
+      // From: A * g * (1 - R*z^{-2}) = A*g + 0*z^{-1} - A*g*R*z^{-2}
+      this.b0 = A * g;
+      this.b2 = -A * g * R;
+
+      // Denominator coefficients (feedback)
+      // From: 1 - 2R*cos(θ)*z^{-1} + R²*z^{-2}
+      this.a1 = -2 * R * Math.cos(theta);
+      this.a2 = R * R;
+
+      this.lastF = F;
+      this.lastB = B;
+      this.lastA = A;
+    }
+
     for (let i = 0; i < input.length; i++) {
       const x0 = input[i];
 
-      // Direct Form I biquad
-      const y0 = this.b0 * x0 + this.b1 * this.x1 + this.b2 * this.x2
+      // Direct Form I biquad (b1 is always 0)
+      const y0 = this.b0 * x0 + this.b2 * this.x2
                  - this.a1 * this.y1 - this.a2 * this.y2;
 
       // Update delay line
@@ -154,14 +169,31 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  *     with correction when harmonics coincide with formant frequencies
  */
 export class FormantResonator implements Node<FormantResonatorParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(_ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
     this.out = workletNode;
+  }
+
+  /** Formant centre frequency AudioParam (a-rate, 100-8000 Hz) */
+  get F(): AudioParam {
+    return this.workletNode.parameters.get("F")!;
+  }
+
+  /** Formant bandwidth AudioParam (a-rate, 20-1000 Hz) */
+  get B(): AudioParam {
+    return this.workletNode.parameters.get("B")!;
+  }
+
+  /** Formant amplitude AudioParam (a-rate, 0-10) */
+  get A(): AudioParam {
+    return this.workletNode.parameters.get("A")!;
   }
 
   /**
@@ -184,15 +216,12 @@ export class FormantResonator implements Node<FormantResonatorParams> {
 
   /**
    * Updates the formant resonator parameters.
-   * Sends new coefficients to the worklet processor for real-time updates.
+   * Sets AudioParams via setTargetAtTime for smooth transitions.
    */
   update(params: FormantResonatorParams): void {
-    this.workletNode.port.postMessage({
-      type: "updateCoefficients",
-      F: params.F,
-      B: params.B,
-      A: params.A,
-    });
+    this.F.setTargetAtTime(params.F, this.ctx.currentTime, 0.02);
+    this.B.setTargetAtTime(params.B, this.ctx.currentTime, 0.02);
+    this.A.setTargetAtTime(params.A, this.ctx.currentTime, 0.02);
   }
 
   destroy(): void {

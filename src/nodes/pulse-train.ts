@@ -29,12 +29,16 @@ export type PulseTrainParams = {
  */
 const processorCode = `
 class PulseTrainProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "f0", defaultValue: 220, minValue: 20, maxValue: 20000, automationRate: "a-rate" },
+      { name: "jitterDepth", defaultValue: 0, minValue: 0, maxValue: 0.3, automationRate: "k-rate" },
+      { name: "shimmerDepth", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" }
+    ];
+  }
+
   constructor() {
     super();
-    this.f0 = 220;
-    this.jitterDepth = 0;
-    this.shimmerDepth = 0;
-
     // Phase accumulator (0 to 1)
     this.phase = 0;
 
@@ -48,30 +52,18 @@ class PulseTrainProcessor extends AudioWorkletProcessor {
 
     // Cached harmonic count for band-limiting
     this.harmonicCount = 0;
-    this.updateHarmonicCount();
-
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'updateParams') {
-        const oldF0 = this.f0;
-        this.f0 = event.data.f0;
-        this.jitterDepth = event.data.jitterDepth;
-        this.shimmerDepth = event.data.shimmerDepth;
-
-        // Update harmonic count if f0 changed significantly (>10%)
-        if (Math.abs(this.f0 - oldF0) / oldF0 > 0.1) {
-          this.updateHarmonicCount();
-        }
-      }
-    };
+    this.lastF0ForHarmonics = 220;
+    this.updateHarmonicCount(220);
   }
 
   /**
    * Update the number of harmonics to sum for band-limited impulse.
    * We include harmonics up to Nyquist to avoid aliasing.
    */
-  updateHarmonicCount() {
+  updateHarmonicCount(f0) {
     const nyquist = sampleRate / 2;
-    this.harmonicCount = Math.max(1, Math.floor(nyquist / this.f0));
+    this.harmonicCount = Math.max(1, Math.floor(nyquist / f0));
+    this.lastF0ForHarmonics = f0;
   }
 
   /**
@@ -102,17 +94,17 @@ class PulseTrainProcessor extends AudioWorkletProcessor {
    * Jitter affects the next period's frequency.
    * Shimmer affects the current pulse's amplitude.
    */
-  generatePerturbations() {
+  generatePerturbations(jitterDepth, shimmerDepth) {
     // Jitter: Gaussian perturbation of f0, clipped to ±jitterDepth
     // Using Gaussian makes small perturbations more likely than large ones
-    const jitterRaw = this.gaussianRandom() * this.jitterDepth * 0.5;
-    const jitterClamped = Math.max(-this.jitterDepth, Math.min(this.jitterDepth, jitterRaw));
+    const jitterRaw = this.gaussianRandom() * jitterDepth * 0.5;
+    const jitterClamped = Math.max(-jitterDepth, Math.min(jitterDepth, jitterRaw));
     this.currentJitter = 1 + jitterClamped;
 
     // Shimmer: Gaussian perturbation of amplitude, clipped to [0, 2]
     // At shimmerDepth=1, amplitude can vary from 0 to 2 (±100%)
-    const shimmerRaw = this.gaussianRandom() * this.shimmerDepth * 0.5;
-    const shimmerClamped = Math.max(-this.shimmerDepth, Math.min(this.shimmerDepth, shimmerRaw));
+    const shimmerRaw = this.gaussianRandom() * shimmerDepth * 0.5;
+    const shimmerClamped = Math.max(-shimmerDepth, Math.min(shimmerDepth, shimmerRaw));
     this.currentShimmer = 1 + shimmerClamped;
 
     // Clamp shimmer to non-negative (amplitude can't be negative)
@@ -144,22 +136,29 @@ class PulseTrainProcessor extends AudioWorkletProcessor {
     }
 
     const dt = 1 / sampleRate;
+    // k-rate parameters (single value per block)
+    const jitterDepth = parameters.jitterDepth[0];
+    const shimmerDepth = parameters.shimmerDepth[0];
 
     for (let i = 0; i < output.length; i++) {
+      // a-rate: per-sample value for f0
+      const f0 = parameters.f0.length > 1 ? parameters.f0[i] : parameters.f0[0];
+
       // Compute effective f0 with current jitter
-      const f0Effective = this.f0 * this.currentJitter;
+      const f0Effective = f0 * this.currentJitter;
 
       // Advance phase
-      const oldPhase = this.phase;
       this.phase += f0Effective * dt;
 
       // Check for period boundary (phase wrapped)
       if (this.phase >= 1) {
         this.phase -= 1;
         // Generate new perturbations for the next period
-        this.generatePerturbations();
-        // Update harmonic count occasionally (when f0 might have changed)
-        this.updateHarmonicCount();
+        this.generatePerturbations(jitterDepth, shimmerDepth);
+        // Update harmonic count if f0 changed significantly (>10%)
+        if (Math.abs(f0 - this.lastF0ForHarmonics) / this.lastF0ForHarmonics > 0.1) {
+          this.updateHarmonicCount(f0);
+        }
       }
 
       // Generate band-limited impulse and apply shimmer
@@ -219,17 +218,34 @@ async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
  *   - shimmerDepth: Maximum amplitude perturbation (0-1 for up to ±100%)
  */
 export class PulseTrain implements Node<PulseTrainParams> {
+  private ctx: AudioContext;
   private workletNode: AudioWorkletNode;
   private gain: Gain;
 
   public in: null;
   public out: AudioNode;
 
-  private constructor(workletNode: AudioWorkletNode, gain: Gain) {
+  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode, gain: Gain) {
+    this.ctx = ctx;
     this.workletNode = workletNode;
     this.gain = gain;
     this.out = gain.out;
     this.in = null;
+  }
+
+  /** Fundamental frequency AudioParam (a-rate, 20-20000 Hz) */
+  get f0(): AudioParam {
+    return this.workletNode.parameters.get("f0")!;
+  }
+
+  /** Jitter depth AudioParam (k-rate, 0-0.3) */
+  get jitterDepth(): AudioParam {
+    return this.workletNode.parameters.get("jitterDepth")!;
+  }
+
+  /** Shimmer depth AudioParam (k-rate, 0-1) */
+  get shimmerDepth(): AudioParam {
+    return this.workletNode.parameters.get("shimmerDepth")!;
   }
 
   static async create(ctx: AudioContext, params: PulseTrainParams): Promise<PulseTrain> {
@@ -240,19 +256,16 @@ export class PulseTrain implements Node<PulseTrainParams> {
 
     workletNode.connect(gain.in);
 
-    const pulseTrain = new PulseTrain(workletNode, gain);
+    const pulseTrain = new PulseTrain(ctx, workletNode, gain);
     pulseTrain.update(params);
 
     return pulseTrain;
   }
 
   update(params: PulseTrainParams) {
-    this.workletNode.port.postMessage({
-      type: "updateParams",
-      f0: params.f0,
-      jitterDepth: params.jitterDepth,
-      shimmerDepth: params.shimmerDepth,
-    });
+    this.f0.setTargetAtTime(params.f0, this.ctx.currentTime, 0.02);
+    this.jitterDepth.setTargetAtTime(params.jitterDepth, this.ctx.currentTime, 0.02);
+    this.shimmerDepth.setTargetAtTime(params.shimmerDepth, this.ctx.currentTime, 0.02);
   }
 
   destroy() {

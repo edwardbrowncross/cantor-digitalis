@@ -151,6 +151,48 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
   }
 
   /**
+   * Returns the pulse train node for direct AudioParam access.
+   *
+   * Example usage:
+   *   gfd.pulseTrainNode.f0.setValueAtTime(440, ctx.currentTime);
+   *   gfd.pulseTrainNode.jitterDepth.linearRampToValueAtTime(0.1, ctx.currentTime + 0.5);
+   */
+  get pulseTrainNode(): PulseTrain {
+    return this.pulseTrain;
+  }
+
+  /**
+   * Returns the glottal formant node for direct AudioParam access.
+   *
+   * Example usage:
+   *   gfd.glottalFormantNode.Fg.setValueAtTime(220, ctx.currentTime);
+   *   gfd.glottalFormantNode.Ag.setTargetAtTime(0.5, ctx.currentTime, 0.1);
+   */
+  get glottalFormantNode(): GlottalFormant {
+    return this.glottalFormant;
+  }
+
+  /**
+   * Returns the spectral tilt node for direct AudioParam access.
+   *
+   * Example usage:
+   *   gfd.spectralTiltNode.Tl1.setValueAtTime(10, ctx.currentTime);
+   */
+  get spectralTiltNode(): SpectralTilt {
+    return this.spectralTilt;
+  }
+
+  /**
+   * Returns the noise source node for direct AudioParam access.
+   *
+   * Example usage:
+   *   gfd.noiseSourceNode.An.setValueAtTime(0.3, ctx.currentTime);
+   */
+  get noiseSourceNode(): NoiseSource {
+    return this.noiseSource;
+  }
+
+  /**
    * Starts the voiced excitation (pulse train).
    */
   start(): void {

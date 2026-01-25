@@ -128,6 +128,38 @@ export class Voice implements Node<VoiceParams> {
     return this.vocalTract.formantCount;
   }
 
+  /**
+   * Returns the glottal flow derivative node for direct AudioParam access.
+   *
+   * Example usage:
+   *   voice.source.pulseTrainNode.f0.setValueAtTime(440, ctx.currentTime);
+   *   voice.source.glottalFormantNode.Ag.setTargetAtTime(0.5, ctx.currentTime, 0.1);
+   */
+  get source(): GlottalFlowDerivative {
+    return this.glottalFlowDerivative;
+  }
+
+  /**
+   * Returns the vocal tract node for direct AudioParam access.
+   *
+   * Example usage:
+   *   voice.tract.formants[0].F.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+   *   voice.tract.antiResonanceNode.F.setValueAtTime(4500, ctx.currentTime);
+   */
+  get tract(): VocalTract {
+    return this.vocalTract;
+  }
+
+  /**
+   * Returns the output gain node for direct AudioParam access.
+   *
+   * Example usage:
+   *   voice.outputGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1);
+   */
+  get outputGain(): Gain {
+    return this.outputGainNode;
+  }
+
   destroy(): void {
     this.glottalFlowDerivative.destroy();
     this.vocalTract.destroy();
