@@ -1,16 +1,55 @@
 /**
- * External Voice Parameters
+ * Perceptual and Synth Parameters
  *
- * These are the high-level, user-controllable parameters for the voice synthesiser.
+ * There are high-level, user-controllable parameters for the voice synthesiser.
  * They map to the perceptually meaningful dimensions described in Section 2.1 of the paper.
+ * These are converted to the low-level synthesis parameters required by
+ * the voice engine using the generateSynthParams function.
  *
  * All normalised parameters range from 0 to 1 unless otherwise noted.
  */
 
-import { VoiceParams } from "./nodes/voice";
 import { interpolateFormants, Formant } from "./vowels";
 
-export type ExternalVoiceParams = {
+export type SynthFormant = {
+  /** Formant centre frequency in Hz */
+  F: number;
+  /** Formant bandwidth in Hz */
+  B: number;
+  /** Formant amplitude (linear gain) */
+  A: number;
+};
+
+export type SynthParams = {
+  /** Fundamental frequency in Hz */
+  f0: number;
+  /** Glottal formant centre frequency in Hz */
+  Fg: number;
+  /** Glottal formant bandwidth in Hz */
+  Bg: number;
+  /** Source amplitude */
+  Ag: number;
+  /** First stage spectral tilt attenuation in dB at 3 kHz */
+  Tl1: number;
+  /** Second stage spectral tilt attenuation in dB at 3 kHz */
+  Tl2: number;
+  /** Noise amplitude */
+  An: number;
+  /** Jitter depth: maximum f₀ perturbation as a fraction (0-0.3 for ±30%) */
+  jitterDepth: number;
+  /** Shimmer depth: maximum amplitude perturbation as a fraction (0-1 for ±100%) */
+  shimmerDepth: number;
+  /** Array of formant parameters (F, B, A) for each resonator */
+  formants: SynthFormant[];
+  /** Anti-formant centre frequency in Hz */
+  F_BQ: number;
+  /** Anti-formant quality factor */
+  Q_BQ: number;
+  /** Overall output gain (linear) */
+  outputGain?: number;
+}
+
+export type PerceptualParams = {
   /** (P) Normalised melodic position across the pitch range (0-1) */
   pitch: number;
   /** (P₀) Base MIDI note number (e.g., 48 for C3, 60 for C4) */
@@ -37,7 +76,7 @@ export type ExternalVoiceParams = {
  * Feature flags for the voice parameter conversion.
  * All features are enabled by default (true). Set to false to disable.
  */
-export type VoiceFeatures = {
+export type SynthFeatures = {
   /**
    * Attenuate formant amplitudes when harmonics coincide with formant frequencies.
    * Paper reference: Section 4.3.7
@@ -65,7 +104,7 @@ export type VoiceFeatures = {
   antiResonanceScaling?: boolean;
 };
 
-const DEFAULT_FEATURES: Required<VoiceFeatures> = {
+const DEFAULT_FEATURES: Required<SynthFeatures> = {
   harmonicCoincidenceAttenuation: true,
   formantFrequencyScaling: true,
   f1Tuning: true,
@@ -235,19 +274,19 @@ function computeFormantAttenuation(
 }
 
 /**
- * Converts external voice parameters to internal VoiceParams.
+ * Converts high-level perceptually relevant voice parameters to internal synthesizer parameters.
  *
  * This implements the parameter mapping rules from Section 4 of the paper,
  * converting perceptually meaningful high-level parameters to the low-level
  * synthesis parameters needed by the voice engine.
  *
- * @param params - The external voice parameters
+ * @param params - The high-level, perceptual voice parameters
  * @param features - Optional feature flags to enable/disable specific behaviours (all enabled by default)
  */
-export function convertToVoiceParams(
-  params: ExternalVoiceParams,
-  features: VoiceFeatures = {}
-): VoiceParams {
+export function generateSynthParams(
+  params: PerceptualParams,
+  features: SynthFeatures = {}
+): SynthParams {
   const opts = { ...DEFAULT_FEATURES, ...features };
   const {
     pitch: P,
@@ -329,21 +368,17 @@ export function convertToVoiceParams(
   const F_BQ = opts.antiResonanceScaling ? F_BQ_BASE * alphaS : F_BQ_BASE;
 
   return {
-    source: {
-      f0,
-      Fg,
-      Bg,
-      Ag,
-      Tl1,
-      Tl2,
-      An,
-      jitterDepth,
-      shimmerDepth,
-    },
-    tract: {
-      formants,
-      F_BQ,
-      Q_BQ,
-    },
+    f0,
+    Fg,
+    Bg,
+    Ag,
+    Tl1,
+    Tl2,
+    An,
+    jitterDepth,
+    shimmerDepth,
+    formants,
+    F_BQ,
+    Q_BQ,
   };
 }

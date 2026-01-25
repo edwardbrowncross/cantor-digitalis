@@ -1,16 +1,8 @@
 import type { Node } from "./types";
-import { GlottalFlowDerivative, GlottalFlowDerivativeParams } from "./glottal-flow-derivative";
-import { VocalTract, VocalTractParams } from "./vocal-tract";
+import { GlottalFlowDerivative } from "./glottal-flow-derivative";
+import { VocalTract } from "./vocal-tract";
 import { Gain } from "./gain";
-
-export type VoiceParams = {
-  /** Glottal flow derivative parameters (voice source) */
-  source: GlottalFlowDerivativeParams;
-  /** Vocal tract parameters (formant filtering) */
-  tract: VocalTractParams;
-  /** Overall output gain (linear) */
-  outputGain?: number;
-};
+import { SynthParams } from "../parameters";
 
 /**
  * Voice Synthesizer
@@ -51,7 +43,7 @@ export type VoiceParams = {
  *   - tract: VocalTractParams (formants array, F_BQ, Q_BQ)
  *   - outputGain: Overall output level (optional, defaults to 1)
  */
-export class Voice implements Node<VoiceParams> {
+export class Voice implements Node<SynthParams> {
   private glottalFlowDerivative: GlottalFlowDerivative;
   private vocalTract: VocalTract;
   private outputGainNode: Gain;
@@ -77,12 +69,12 @@ export class Voice implements Node<VoiceParams> {
    */
   static async create(
     ctx: AudioContext,
-    params: VoiceParams
+    params: SynthParams
   ): Promise<Voice> {
     // Create all sub-nodes in parallel
     const [glottalFlowDerivative, vocalTract, outputGainNode] = await Promise.all([
-      GlottalFlowDerivative.create(ctx, params.source),
-      VocalTract.create(ctx, params.tract),
+      GlottalFlowDerivative.create(ctx, params),
+      VocalTract.create(ctx, params),
       Gain.create(ctx, { gain: params.outputGain ?? 1 }),
     ]);
 
@@ -98,9 +90,9 @@ export class Voice implements Node<VoiceParams> {
    *
    * @throws Error if the formants array length doesn't match the original
    */
-  update(params: VoiceParams): void {
-    this.glottalFlowDerivative.update(params.source);
-    this.vocalTract.update(params.tract);
+  update(params: SynthParams): void {
+    this.glottalFlowDerivative.update(params);
+    this.vocalTract.update(params);
     if (params.outputGain !== undefined) {
       this.outputGainNode.update({ gain: params.outputGain });
     }
