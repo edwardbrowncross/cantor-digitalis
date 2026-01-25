@@ -11,16 +11,16 @@ let animationId: number | null = null;
 let masterGainValue = 1.0;
 
 const params: ExternalVoiceParams = {
-  P: 0,
-  P0: 55,
-  E: 0.8,
-  H: 0.85,
-  V: 0.1,
-  T: 0.5,
-  B: 0.02,
-  R: 0.01,
-  S: 0.28,
-  M: 1,
+  pitch: 0,
+  pitchOffset: 55,
+  vocalEffort: 0.8,
+  vowelHeight: 0.85,
+  vowelBackness: 0.1,
+  tenseness: 0.5,
+  breathiness: 0.02,
+  roughness: 0.01,
+  vocalTractSize: 0.28,
+  isFalsetto: false,
 };
 
 function midiToNoteName(midi: number): string {
@@ -219,53 +219,53 @@ function createUI() {
     36,
     72,
     1,
-    params.P0,
+    params.pitchOffset,
     (v) => midiToNoteName(v),
     (v) => {
-      params.P0 = v;
+      params.pitchOffset = v;
       updateVoice();
     }
   );
 
   // Vocal Effort
-  createSlider(controls, "Vocal Effort (E)", 0, 1, 0.01, params.E, (v) => v.toFixed(2), (v) => {
-    params.E = v;
+  createSlider(controls, "Vocal Effort (E)", 0, 1, 0.01, params.vocalEffort, (v) => v.toFixed(2), (v) => {
+    params.vocalEffort = v;
     updateVoice();
   });
 
   // Vowel Height
-  createSlider(controls, "Vowel Height (H)", 0, 1, 0.01, params.H, (v) => v.toFixed(2), (v) => {
-    params.H = v;
+  createSlider(controls, "Vowel Height (H)", 0, 1, 0.01, params.vowelHeight, (v) => v.toFixed(2), (v) => {
+    params.vowelHeight = v;
     updateVoice();
   });
 
   // Vowel Backness
-  createSlider(controls, "Vowel Backness (V)", 0, 1, 0.01, params.V, (v) => v.toFixed(2), (v) => {
-    params.V = v;
+  createSlider(controls, "Vowel Backness (V)", 0, 1, 0.01, params.vowelBackness, (v) => v.toFixed(2), (v) => {
+    params.vowelBackness = v;
     updateVoice();
   });
 
   // Tenseness
-  createSlider(controls, "Tenseness (T)", 0, 1, 0.01, params.T, (v) => v.toFixed(2), (v) => {
-    params.T = v;
+  createSlider(controls, "Tenseness (T)", 0, 1, 0.01, params.tenseness, (v) => v.toFixed(2), (v) => {
+    params.tenseness = v;
     updateVoice();
   });
 
   // Breathiness
-  createSlider(controls, "Breathiness (B)", 0, 1, 0.01, params.B, (v) => v.toFixed(2), (v) => {
-    params.B = v;
+  createSlider(controls, "Breathiness (B)", 0, 1, 0.01, params.breathiness, (v) => v.toFixed(2), (v) => {
+    params.breathiness = v;
     updateVoice();
   });
 
   // Roughness
-  createSlider(controls, "Roughness (R)", 0, 1, 0.01, params.R, (v) => v.toFixed(2), (v) => {
-    params.R = v;
+  createSlider(controls, "Roughness (R)", 0, 1, 0.01, params.roughness, (v) => v.toFixed(2), (v) => {
+    params.roughness = v;
     updateVoice();
   });
 
   // Vocal Tract Size
-  createSlider(controls, "Tract Size (S)", 0, 1, 0.01, params.S, (v) => v.toFixed(2), (v) => {
-    params.S = v;
+  createSlider(controls, "Tract Size (S)", 0, 1, 0.01, params.vocalTractSize, (v) => v.toFixed(2), (v) => {
+    params.vocalTractSize = v;
     updateVoice();
   });
 
@@ -275,9 +275,9 @@ function createUI() {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.id = "falsetto";
-  checkbox.checked = params.M === 2;
+  checkbox.checked = params.isFalsetto;
   checkbox.addEventListener("change", () => {
-    params.M = checkbox.checked ? 2 : 1;
+    params.isFalsetto = checkbox.checked;
     updateVoice();
   });
   const checkboxLabel = document.createElement("label");

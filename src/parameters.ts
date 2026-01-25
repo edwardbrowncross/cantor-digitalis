@@ -11,26 +11,26 @@ import { VoiceParams } from "./nodes/voice";
 import { interpolateFormants, Formant } from "./vowels";
 
 export type ExternalVoiceParams = {
-  /** Pitch (0-1): Normalised melodic position across the pitch range */
-  P: number;
-  /** Pitch offset: Base MIDI note number (e.g., 48 for C3, 60 for C4) */
-  P0: number;
-  /** Vocal effort (0-1): Perceived force/dynamics of the voice */
-  E: number;
-  /** Vowel height (0-1): 0 = close (e.g., /i/, /u/), 1 = open (e.g., /a/) */
-  H: number;
-  /** Vowel backness (0-1): 0 = back (e.g., /u/), 1 = front (e.g., /i/) */
-  V: number;
-  /** Tenseness (0-1): Degree of vocal fold adduction (0 = lax, 1 = tense) */
-  T: number;
-  /** Breathiness (0-1): Amount of aspiration noise */
-  B: number;
-  /** Roughness (0-1): Structural aperiodicities (jitter/shimmer) */
-  R: number;
-  /** Vocal tract size (0-1): 0 = small/child, 1 = large/giant */
-  S: number;
-  /** Laryngeal mechanism: 1 = chest voice, 2 = falsetto */
-  M: 1 | 2;
+  /** (P) Normalised melodic position across the pitch range (0-1) */
+  pitch: number;
+  /** (P₀) Base MIDI note number (e.g., 48 for C3, 60 for C4) */
+  pitchOffset: number;
+  /** (E) Perceived force/dynamics of the voice (0-1) */
+  vocalEffort: number;
+  /** (H) Vertical tongue position: 0 = close (e.g., /i/, /u/), 1 = open (e.g., /a/) */
+  vowelHeight: number;
+  /** (V) Horizontal tongue position: 0 = back (e.g., /u/), 1 = front (e.g., /i/) */
+  vowelBackness: number;
+  /** (T) Degree of vocal fold adduction: 0 = lax, 1 = tense */
+  tenseness: number;
+  /** (B) Amount of aspiration noise (0-1) */
+  breathiness: number;
+  /** (R) Structural aperiodicities causing jitter/shimmer (0-1) */
+  roughness: number;
+  /** (S) Apparent size of the vocal tract: 0 = small/child, 1 = large/giant */
+  vocalTractSize: number;
+  /** (M) Vocal fold vibration mode: false = chest voice (M1), true = falsetto (M2) */
+  isFalsetto: boolean;
 };
 
 /** Phonation threshold - below this vocal effort, no voiced sound is produced */
@@ -205,7 +205,19 @@ function computeFormantAttenuation(
  * Those should be applied at runtime for dynamic variation.
  */
 export function convertToVoiceParams(params: ExternalVoiceParams): VoiceParams {
-  const { P, P0, E, H, V, T, B, R, S, M } = params;
+  const {
+    pitch: P,
+    pitchOffset: P0,
+    vocalEffort: E,
+    vowelHeight: H,
+    vowelBackness: V,
+    tenseness: T,
+    breathiness: B,
+    roughness: R,
+    vocalTractSize: S,
+    isFalsetto,
+  } = params;
+  const M: 1 | 2 = isFalsetto ? 2 : 1;
 
   // Compute fundamental frequency
   const pitchMidi = P0 + 35 * P;
