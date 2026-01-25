@@ -8,6 +8,12 @@ This library is an implementation of the synthesis pipeline described in [L Feug
 > parametric synthesis of singing. EURASIP Journal on Audio, Speech, and Music Processing, 2017,
 > 22, pp.30. ff10.1186/s13636-016-0098-5ff. ffhal-01461822f
 
+The paper also describes a stylus-based interface for real-time control of the synthesizer, which is out of the scope of this library. See the original paper for details.
+
+## Live Demo
+
+To hear the synthesizer in action, see the [demo app](https://edwardbrowncross.github.io/cantor-digitalis/) (source code found in example directory).
+
 ## Installation
 
 ```bash
@@ -152,10 +158,6 @@ pulseTrain.out.connect(formant.in);
 formant.out.connect(ctx.destination);
 pulseTrain.start();
 ```
-
-## Live Demo
-
-[DEMO LINK]
 
 ## License
 

@@ -38,11 +38,11 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/edwardbrowncross/cantor-digitalis.git"
   },
-  "homepage": "",
+  "homepage": "https://edwardbrowncross.github.io/cantor-digitalis/",
   "bugs": {
-    "url": ""
+    "url": "https://github.com/edwardbrowncross/cantor-digitalis/issues"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
