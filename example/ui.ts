@@ -25,6 +25,13 @@ export interface UICallbacks {
   onStop: () => void;
 }
 
+export interface VowelButtonConfig {
+  ipa: string;
+  h: number; // backness
+  v: number; // height
+  tooltip: string;
+}
+
 export function midiToNoteName(midi: number): string {
   const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const octave = Math.floor(midi / 12) - 1;
@@ -195,22 +202,72 @@ export class SpectrumAnalyzer {
   };
 }
 
+export interface SliderRefs {
+  vowelHeight: HTMLInputElement;
+  vowelBackness: HTMLInputElement;
+}
+
 export function createControlPanel(
   paramSliders: SliderConfig[],
   featureCheckboxes: CheckboxConfig[],
   falsettoCheckbox: CheckboxConfig,
-  callbacks: UICallbacks
-): { container: HTMLElement; spectrumCanvas: HTMLCanvasElement } {
+  callbacks: UICallbacks,
+  vowelButtons?: VowelButtonConfig[],
+  onVowelSelect?: (h: number, v: number) => void
+): { container: HTMLElement; spectrumCanvas: HTMLCanvasElement; sliderRefs: SliderRefs } {
   const controls = document.createElement("div");
   controls.className = "controls";
 
+  // Track slider references for vowel button updates
+  const sliderRefs: Partial<SliderRefs> = {};
+
   // Create parameter sliders
   for (const config of paramSliders) {
-    createSlider(controls, config);
+    const slider = createSlider(controls, config);
+    if (config.label.includes("Height")) {
+      sliderRefs.vowelHeight = slider;
+    } else if (config.label.includes("Backness")) {
+      sliderRefs.vowelBackness = slider;
+    }
   }
 
   // Falsetto checkbox
   createCheckbox(controls, falsettoCheckbox);
+
+  // Vowel buttons section
+  if (vowelButtons && onVowelSelect) {
+    const vowelSection = document.createElement("div");
+    vowelSection.className = "vowel-section";
+    const vowelHeader = document.createElement("h3");
+    vowelHeader.textContent = "Vowels";
+    vowelSection.appendChild(vowelHeader);
+
+    const vowelContainer = document.createElement("div");
+    vowelContainer.className = "vowel-buttons";
+
+    for (const vowel of vowelButtons) {
+      const btn = document.createElement("button");
+      btn.className = "vowel-btn";
+      btn.textContent = vowel.ipa;
+      btn.title = vowel.tooltip;
+      btn.addEventListener("click", () => {
+        // Update slider values
+        if (sliderRefs.vowelHeight) {
+          sliderRefs.vowelHeight.value = String(vowel.v);
+          sliderRefs.vowelHeight.dispatchEvent(new Event("input"));
+        }
+        if (sliderRefs.vowelBackness) {
+          sliderRefs.vowelBackness.value = String(vowel.h);
+          sliderRefs.vowelBackness.dispatchEvent(new Event("input"));
+        }
+        onVowelSelect(vowel.h, vowel.v);
+      });
+      vowelContainer.appendChild(btn);
+    }
+
+    vowelSection.appendChild(vowelContainer);
+    controls.appendChild(vowelSection);
+  }
 
   // Feature flags section
   const featuresSection = document.createElement("div");
@@ -261,5 +318,5 @@ export function createControlPanel(
   spectrumCanvas.height = 200;
   controls.appendChild(spectrumCanvas);
 
-  return { container: controls, spectrumCanvas };
+  return { container: controls, spectrumCanvas, sliderRefs: sliderRefs as SliderRefs };
 }

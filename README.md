@@ -1,8 +1,8 @@
 # Cantor Digitalis
 
-A Web Audio implementation of the Cantor Digitalis voice synthesizer, a physically-informed source-filter model for singing voice synthesis.
+A Web Audio implementation of the Cantor Digitalis voice synthesizer, a physically-informed source-filter model for synthesizing sung vowel sounds. It produces natural-sounding singing voices with high-level controls over pitch, vowel quality, vocal effort, and other perceptually relevant parameters.
 
-This library is an implementation of the synthesis pipeline described in [L Feugère et al., 2017](https://hal.sorbonne-universite.fr/hal-01461822v1/document). The research and signal processing design are the work of the original authors; this project provides a web-based implementation using the Web Audio API.
+This library is an implementation of that synthesis pipeline, as described in [L Feugère et al., 2017](https://hal.sorbonne-universite.fr/hal-01461822v1/document). The research and signal processing design are the work of the original authors; this project provides a web-based implementation using the Web Audio API.
 
 > Lionel Feugère, Christophe d’Alessandro, Boris Doval, Olivier Perrotin. Cantor Digitalis: chironomic
 > parametric synthesis of singing. EURASIP Journal on Audio, Speech, and Music Processing, 2017,

@@ -13,6 +13,7 @@ import {
   generateSynthParams,
   PerceptualParams,
   SynthFeatures,
+  vowels,
 } from "cantor-digitalis";
 
 import {
@@ -21,6 +22,7 @@ import {
   SpectrumAnalyzer,
   SliderConfig,
   CheckboxConfig,
+  VowelButtonConfig,
 } from "./ui";
 
 // ============================================================================
@@ -314,6 +316,27 @@ const falsettoCheckbox: CheckboxConfig = {
   },
 };
 
+// English example words for each vowel (French vowels mapped to closest English equivalents)
+const vowelTooltips: Record<string, string> = {
+  i: 'as in "feet"',
+  e: 'as in "may"',
+  ɛ: 'as in "bet"',
+  y: 'as in "few" (rounded)',
+  œ: 'as in "fur" (rounded)',
+  ø: 'as in "bird" (rounded)',
+  u: 'as in "boot"',
+  o: 'as in "go"',
+  ɔ: 'as in "caught"',
+  a: 'as in "father"',
+};
+
+const vowelButtonConfigs: VowelButtonConfig[] = vowels.map((v) => ({
+  ipa: v.ipa,
+  h: v.h,
+  v: v.v,
+  tooltip: vowelTooltips[v.ipa] || v.ipa,
+}));
+
 // Create the UI and mount it
 const { container, spectrumCanvas } = createControlPanel(
   paramSliders,
@@ -322,6 +345,12 @@ const { container, spectrumCanvas } = createControlPanel(
   {
     onStart: startAudio,
     onStop: stopAudio,
+  },
+  vowelButtonConfigs,
+  (h, v) => {
+    params.vowelBackness = h;
+    params.vowelHeight = v;
+    updateVoice();
   }
 );
 
