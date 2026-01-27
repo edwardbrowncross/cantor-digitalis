@@ -14,24 +14,24 @@ export interface Formant {
 
 export interface VowelData {
   ipa: string;
-  v: number; // backness: 0 = back, 1 = front
-  h: number; // height: 0 = close, 1 = open
+  h: number; // horizontal position (backness): 0 = back, 1 = front
+  v: number; // vertical position (height): 0 = close, 1 = open
   formants: [Formant, Formant, Formant, Formant, Formant, Formant];
 }
 
 // Grid structure for interpolation
-// V levels: 0 (back), 0.5 (central), 1 (front)
-// H levels: 0 (close), 1/3, 2/3, 1 (open)
-const V_LEVELS = [0, 0.5, 1];
-const H_LEVELS = [0, 1 / 3, 2 / 3, 1];
+// H levels: 0 (back), 0.5 (central), 1 (front) - horizontal/backness
+// V levels: 0 (close), 1/3, 2/3, 1 (open) - vertical/height
+const H_LEVELS = [0, 0.5, 1];
+const V_LEVELS = [0, 1 / 3, 2 / 3, 1];
 
-// Vowel grid indexed by [h_index][v_index]
-// At H=1, only /a/ exists (V=0.5), so we treat it as spanning the full width
+// Vowel grid indexed by [v_index][h_index]
+// At V=1, only /a/ exists (H=0.5), so we treat it as spanning the full width
 const VOWEL_GRID: (string | null)[][] = [
-  ["u", "y", "i"], // H = 0
-  ["o", "œ", "e"], // H = 1/3
-  ["ɔ", "ø", "ɛ"], // H = 2/3
-  ["a", "a", "a"], // H = 1 (all map to /a/)
+  ["u", "y", "i"], // V = 0 (close)
+  ["o", "œ", "e"], // V = 1/3
+  ["ɔ", "ø", "ɛ"], // V = 2/3
+  ["a", "a", "a"], // V = 1 (open, all map to /a/)
 ];
 
 function findVowelByIpa(ipa: string): VowelData | undefined {
@@ -68,29 +68,19 @@ function lerpFormants(
 /**
  * Interpolate formants for arbitrary vowel coordinates using bilinear interpolation.
  *
- * @param v - Vowel backness (0 = back, 1 = front)
- * @param h - Vowel height (0 = close, 1 = open)
+ * @param h - Vowel backness (0 = back, 1 = front) - horizontal position
+ * @param v - Vowel height (0 = close, 1 = open) - vertical position
  * @returns Interpolated formant array
  */
 export function interpolateFormants(
-  v: number,
-  h: number
+  h: number,
+  v: number
 ): [Formant, Formant, Formant, Formant, Formant, Formant] {
   // Clamp inputs to valid range
-  v = Math.max(0, Math.min(1, v));
   h = Math.max(0, Math.min(1, h));
+  v = Math.max(0, Math.min(1, v));
 
-  // Find surrounding grid indices
-  let hLow = 0;
-  let hHigh = 1;
-  for (let i = 0; i < H_LEVELS.length - 1; i++) {
-    if (h >= H_LEVELS[i] && h <= H_LEVELS[i + 1]) {
-      hLow = i;
-      hHigh = i + 1;
-      break;
-    }
-  }
-
+  // Find surrounding grid indices for height (V)
   let vLow = 0;
   let vHigh = 1;
   for (let i = 0; i < V_LEVELS.length - 1; i++) {
@@ -101,31 +91,42 @@ export function interpolateFormants(
     }
   }
 
+  // Find surrounding grid indices for backness (H)
+  let hLow = 0;
+  let hHigh = 1;
+  for (let i = 0; i < H_LEVELS.length - 1; i++) {
+    if (h >= H_LEVELS[i] && h <= H_LEVELS[i + 1]) {
+      hLow = i;
+      hHigh = i + 1;
+      break;
+    }
+  }
+
   // Get the four corner vowels
-  const bottomLeft = findVowelByIpa(VOWEL_GRID[hLow][vLow]!)!;
-  const bottomRight = findVowelByIpa(VOWEL_GRID[hLow][vHigh]!)!;
-  const topLeft = findVowelByIpa(VOWEL_GRID[hHigh][vLow]!)!;
-  const topRight = findVowelByIpa(VOWEL_GRID[hHigh][vHigh]!)!;
+  const bottomLeft = findVowelByIpa(VOWEL_GRID[vLow][hLow]!)!;
+  const bottomRight = findVowelByIpa(VOWEL_GRID[vLow][hHigh]!)!;
+  const topLeft = findVowelByIpa(VOWEL_GRID[vHigh][hLow]!)!;
+  const topRight = findVowelByIpa(VOWEL_GRID[vHigh][hHigh]!)!;
 
   // Calculate interpolation factors
-  const hRange = H_LEVELS[hHigh] - H_LEVELS[hLow];
   const vRange = V_LEVELS[vHigh] - V_LEVELS[vLow];
+  const hRange = H_LEVELS[hHigh] - H_LEVELS[hLow];
 
-  const tH = hRange > 0 ? (h - H_LEVELS[hLow]) / hRange : 0;
   const tV = vRange > 0 ? (v - V_LEVELS[vLow]) / vRange : 0;
+  const tH = hRange > 0 ? (h - H_LEVELS[hLow]) / hRange : 0;
 
   // Bilinear interpolation
-  const bottom = lerpFormants(bottomLeft.formants, bottomRight.formants, tV);
-  const top = lerpFormants(topLeft.formants, topRight.formants, tV);
+  const bottom = lerpFormants(bottomLeft.formants, bottomRight.formants, tH);
+  const top = lerpFormants(topLeft.formants, topRight.formants, tH);
 
-  return lerpFormants(bottom, top, tH);
+  return lerpFormants(bottom, top, tV);
 }
 
 export const vowels: VowelData[] = [
   {
     ipa: "i",
-    v: 1,
-    h: 0,
+    h: 1,
+    v: 0,
     formants: [
       { frequency: 215, amplitude: -10, bandwidth: 10 },
       { frequency: 1900, amplitude: -10, bandwidth: 18 },
@@ -137,8 +138,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "e",
-    v: 1,
-    h: 1 / 3,
+    h: 1,
+    v: 1 / 3,
     formants: [
       { frequency: 410, amplitude: -1, bandwidth: 10 },
       { frequency: 2000, amplitude: -3, bandwidth: 15 },
@@ -150,8 +151,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "ɛ",
-    v: 1,
-    h: 2 / 3,
+    h: 1,
+    v: 2 / 3,
     formants: [
       { frequency: 590, amplitude: 0, bandwidth: 10 },
       { frequency: 1700, amplitude: -4, bandwidth: 15 },
@@ -163,8 +164,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "y",
-    v: 0.5,
-    h: 0,
+    h: 0.5,
+    v: 0,
     formants: [
       { frequency: 250, amplitude: -12, bandwidth: 10 },
       { frequency: 1750, amplitude: -9, bandwidth: 10 },
@@ -176,8 +177,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "œ",
-    v: 0.5,
-    h: 1 / 3,
+    h: 0.5,
+    v: 1 / 3,
     formants: [
       { frequency: 350, amplitude: -6, bandwidth: 10 },
       { frequency: 1350, amplitude: -3, bandwidth: 10 },
@@ -189,8 +190,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "ø",
-    v: 0.5,
-    h: 2 / 3,
+    h: 0.5,
+    v: 2 / 3,
     formants: [
       { frequency: 620, amplitude: -3, bandwidth: 10 },
       { frequency: 1300, amplitude: -3, bandwidth: 10 },
@@ -202,8 +203,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "u",
-    v: 0,
     h: 0,
+    v: 0,
     formants: [
       { frequency: 290, amplitude: -6, bandwidth: 10 },
       { frequency: 750, amplitude: -8, bandwidth: 10 },
@@ -215,8 +216,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "o",
-    v: 0,
-    h: 1 / 3,
+    h: 0,
+    v: 1 / 3,
     formants: [
       { frequency: 440, amplitude: -6, bandwidth: 10 },
       { frequency: 750, amplitude: -1, bandwidth: 12 },
@@ -228,8 +229,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "ɔ",
-    v: 0,
-    h: 2 / 3,
+    h: 0,
+    v: 2 / 3,
     formants: [
       { frequency: 610, amplitude: -3, bandwidth: 10 },
       { frequency: 950, amplitude: 0, bandwidth: 12 },
@@ -241,8 +242,8 @@ export const vowels: VowelData[] = [
   },
   {
     ipa: "a",
-    v: 0.5,
-    h: 1,
+    h: 0.5,
+    v: 1,
     formants: [
       { frequency: 700, amplitude: 0, bandwidth: 13 },
       { frequency: 1200, amplitude: 0, bandwidth: 13 },
