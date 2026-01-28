@@ -83,6 +83,47 @@ Additionally, the synthesizer exposes `AudioParam` objects for the synth-level p
 | `vocalTractSize` | 0–1 | Vocal tract scaling (child to giant) |
 | `isFalsetto` | bool | Laryngeal mechanism (M1/M2) |
 
+### Custom Vowel Tables
+
+You may notice that the synthesizer sings with a french accent. The default vowels are the French vowel sounds from the research paper. The frequency and bandwidths of the formants for each vowel can change the character of the produced sound significantly. You can provide a custom vowel table, mapping locations in vowel space to a set of formant frequencies, amplitudes, and bandwidths. You can source these from other research papers, or analyze the formant frequencies of recorded vowel sounds using tools like [Praat](https://www.fon.hum.uva.nl/praat/).
+
+```typescript
+import { generateSynthParams, VowelTable, defaultVowelTable } from "cantor-digitalis";
+
+// Create a custom vowel table
+const customTable: VowelTable = {
+  vowels: [
+    {
+      ipa: "a",
+      h: 0.5,  // backness: 0 = back, 1 = front
+      v: 1,    // height: 0 = close, 1 = open
+      formants: [
+        { frequency: 700, amplitude: 0, bandwidth: 100 },
+        { frequency: 1200, amplitude: -3, bandwidth: 120 },
+        { frequency: 2500, amplitude: -10, bandwidth: 150 },
+        { frequency: 3500, amplitude: -15, bandwidth: 200 },
+        { frequency: 4500, amplitude: -20, bandwidth: 250 },
+        { frequency: 5500, amplitude: -25, bandwidth: 300 },
+      ],
+    },
+    {
+      ipa: "i",
+      h: 1, v: 0,
+      formants: [/* ... */],
+    },
+    {
+      ipa: "u",
+      h: 0, v: 0,
+      formants: [/* ... */],
+    },
+  ],
+  idwPower: 2,  // optional: interpolation sharpness (default: 2)
+};
+
+// Use with generateSynthParams
+const synthParams = generateSynthParams(params, { vowelTable: customTable });
+```
+
 ### Synth Parameters
 
 These low-level parameters directly control the audio processing and correspond to the physical/acoustic properties in the research paper.

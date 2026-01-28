@@ -1,6 +1,7 @@
 /**
- * Vowel formant data from Cantor Digitalis Table 3
+ * Vowel formant data and interpolation
  *
+ * Default vowel data from Cantor Digitalis Table 3
  * Reference: Section 4.3.1 "Generic Formant Values"
  *
  * The sixth formant is derived: F6 = 2*F4, A6 = -15 dB, B6 = 150 Hz
@@ -13,116 +14,113 @@ export interface Formant {
 }
 
 export interface VowelData {
+  /** IPA symbol or identifier for this vowel */
   ipa: string;
-  h: number; // horizontal position (backness): 0 = back, 1 = front
-  v: number; // vertical position (height): 0 = close, 1 = open
-  formants: [Formant, Formant, Formant, Formant, Formant, Formant];
-}
-
-// Grid structure for interpolation
-// H levels: 0 (back), 0.5 (central), 1 (front) - horizontal/backness
-// V levels: 0 (close), 1/3, 2/3, 1 (open) - vertical/height
-const H_LEVELS = [0, 0.5, 1];
-const V_LEVELS = [0, 1 / 3, 2 / 3, 1];
-
-// Vowel grid indexed by [v_index][h_index]
-// At V=1, only /a/ exists (H=0.5), so we treat it as spanning the full width
-const VOWEL_GRID: (string | null)[][] = [
-  ["u", "y", "i"], // V = 0 (close)
-  ["o", "œ", "e"], // V = 1/3
-  ["ɔ", "ø", "ɛ"], // V = 2/3
-  ["a", "a", "a"], // V = 1 (open, all map to /a/)
-];
-
-function findVowelByIpa(ipa: string): VowelData | undefined {
-  return vowels.find((v) => v.ipa === ipa);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-function lerpFormant(a: Formant, b: Formant, t: number): Formant {
-  return {
-    frequency: lerp(a.frequency, b.frequency, t),
-    amplitude: lerp(a.amplitude, b.amplitude, t),
-    bandwidth: lerp(a.bandwidth, b.bandwidth, t),
-  };
-}
-
-function lerpFormants(
-  a: Formant[],
-  b: Formant[],
-  t: number
-): [Formant, Formant, Formant, Formant, Formant, Formant] {
-  return a.map((f, i) => lerpFormant(f, b[i], t)) as [
-    Formant,
-    Formant,
-    Formant,
-    Formant,
-    Formant,
-    Formant,
-  ];
+  /** Horizontal position (backness): 0 = back, 1 = front */
+  h: number;
+  /** Vertical position (height): 0 = close, 1 = open */
+  v: number;
+  /** Formant data (frequency, amplitude, bandwidth) for each resonator */
+  formants: Formant[];
 }
 
 /**
- * Interpolate formants for arbitrary vowel coordinates using bilinear interpolation.
+ * A vowel table containing vowel data points for interpolation.
+ * Vowels can be placed at arbitrary (h, v) coordinates.
+ */
+export interface VowelTable {
+  /** Array of vowel data points */
+  vowels: VowelData[];
+  /** Power parameter for inverse distance weighting (default: 2) */
+  idwPower?: number;
+}
+
+/** Default IDW power (inverse square weighting) */
+const DEFAULT_IDW_POWER = 2;
+
+/** Small epsilon to handle exact matches and avoid division issues */
+const EPSILON = 1e-10;
+
+/**
+ * Interpolate formants for arbitrary vowel coordinates using inverse distance weighting.
+ *
+ * Each vowel in the table contributes to the result weighted by the inverse of its
+ * distance from the query point, raised to the specified power.
  *
  * @param h - Vowel backness (0 = back, 1 = front) - horizontal position
  * @param v - Vowel height (0 = close, 1 = open) - vertical position
+ * @param table - Vowel table to interpolate from (defaults to defaultVowelTable)
  * @returns Interpolated formant array
  */
 export function interpolateFormants(
   h: number,
-  v: number
-): [Formant, Formant, Formant, Formant, Formant, Formant] {
+  v: number,
+  table: VowelTable = defaultVowelTable
+): Formant[] {
+  const { vowels, idwPower = DEFAULT_IDW_POWER } = table;
+
+  if (vowels.length === 0) {
+    throw new Error("Vowel table must contain at least one vowel");
+  }
+
+  // Verify all vowels have the same number of formants
+  const expectedFormantCount = vowels[0].formants.length;
+  for (let i = 1; i < vowels.length; i++) {
+    const actualCount = vowels[i].formants.length;
+    if (actualCount !== expectedFormantCount) {
+      throw new Error(
+        `Vowel table formant count mismatch: vowel "${vowels[0].ipa}" has ${expectedFormantCount} formants, ` +
+          `but vowel "${vowels[i].ipa}" has ${actualCount} formants. All vowels must have the same number of formants.`
+      );
+    }
+  }
+
   // Clamp inputs to valid range
   h = Math.max(0, Math.min(1, h));
   v = Math.max(0, Math.min(1, v));
 
-  // Find surrounding grid indices for height (V)
-  let vLow = 0;
-  let vHigh = 1;
-  for (let i = 0; i < V_LEVELS.length - 1; i++) {
-    if (v >= V_LEVELS[i] && v <= V_LEVELS[i + 1]) {
-      vLow = i;
-      vHigh = i + 1;
-      break;
-    }
+  // Compute distances and check for exact matches
+  const distances = vowels.map((vowel) => Math.hypot(vowel.h - h, vowel.v - v));
+
+  // If we're very close to an existing vowel, return its formants directly
+  const minDist = Math.min(...distances);
+  if (minDist < EPSILON) {
+    const exactMatch = vowels[distances.indexOf(minDist)];
+    return exactMatch.formants.map((f) => ({ ...f }));
   }
 
-  // Find surrounding grid indices for backness (H)
-  let hLow = 0;
-  let hHigh = 1;
-  for (let i = 0; i < H_LEVELS.length - 1; i++) {
-    if (h >= H_LEVELS[i] && h <= H_LEVELS[i + 1]) {
-      hLow = i;
-      hHigh = i + 1;
-      break;
+  // Compute inverse distance weights
+  const weights = distances.map((dist) => 1 / Math.pow(dist, idwPower));
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+
+  // Determine number of formants from first vowel
+  const numFormants = vowels[0].formants.length;
+
+  // Weighted average of all formants
+  const result: Formant[] = [];
+  for (let i = 0; i < numFormants; i++) {
+    let frequency = 0;
+    let amplitude = 0;
+    let bandwidth = 0;
+
+    for (let j = 0; j < vowels.length; j++) {
+      const w = weights[j] / totalWeight;
+      const f = vowels[j].formants[i];
+      if (f) {
+        frequency += w * f.frequency;
+        amplitude += w * f.amplitude;
+        bandwidth += w * f.bandwidth;
+      }
     }
+
+    result.push({ frequency, amplitude, bandwidth });
   }
 
-  // Get the four corner vowels
-  const bottomLeft = findVowelByIpa(VOWEL_GRID[vLow][hLow]!)!;
-  const bottomRight = findVowelByIpa(VOWEL_GRID[vLow][hHigh]!)!;
-  const topLeft = findVowelByIpa(VOWEL_GRID[vHigh][hLow]!)!;
-  const topRight = findVowelByIpa(VOWEL_GRID[vHigh][hHigh]!)!;
-
-  // Calculate interpolation factors
-  const vRange = V_LEVELS[vHigh] - V_LEVELS[vLow];
-  const hRange = H_LEVELS[hHigh] - H_LEVELS[hLow];
-
-  const tV = vRange > 0 ? (v - V_LEVELS[vLow]) / vRange : 0;
-  const tH = hRange > 0 ? (h - H_LEVELS[hLow]) / hRange : 0;
-
-  // Bilinear interpolation
-  const bottom = lerpFormants(bottomLeft.formants, bottomRight.formants, tH);
-  const top = lerpFormants(topLeft.formants, topRight.formants, tH);
-
-  return lerpFormants(bottom, top, tV);
+  return result;
 }
 
-export const vowels: VowelData[] = [
+/** Default vowel data (French vowels from Cantor Digitalis Table 3) */
+const defaultVowels: VowelData[] = [
   {
     ipa: "i",
     h: 1,
@@ -254,3 +252,8 @@ export const vowels: VowelData[] = [
     ],
   },
 ];
+
+/** Default vowel table (French vowels from Cantor Digitalis) */
+export const defaultVowelTable: VowelTable = {
+  vowels: defaultVowels,
+};

@@ -11,12 +11,20 @@
 export { Voice } from "./nodes/voice";
 
 // Parameter conversion (perceptual → synthesis)
-export { generateSynthParams } from "./parameters";
-export type { PerceptualParams, SynthParams, SynthFormant, SynthFeatures } from "./parameters";
+export { generateSynthParams, defaultVowelTable } from "./parameters";
+export type {
+  PerceptualParams,
+  SynthParams,
+  SynthFormant,
+  SynthOptions,
+  SynthFeatures,
+  VowelTable,
+  VowelData,
+  Formant,
+} from "./parameters";
 
-// Vowel interpolation
-export { interpolateFormants, vowels } from "./parameters/vowels";
-export type { Formant, VowelData } from "./parameters/vowels";
+// Vowel interpolation (also available via parameters module)
+export { interpolateFormants } from "./parameters/vowels";
 
 // Node interface for advanced usage
 export type { Node } from "./nodes/types";

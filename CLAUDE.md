@@ -333,13 +333,51 @@ Six parallel bandpass filters model the resonant frequencies of the vocal tract.
 
 #### Vowel Interpolation
 
-The formant parameters for arbitrary vowels are computed by 2D interpolation across a table of canonical vowel values. The table (Table 3 in the paper) defines centre frequencies, bandwidths, and amplitudes for ten French vowels positioned in the vowel space by their height (H) and backness (V) coordinates.
+The formant parameters for arbitrary vowels are computed by interpolation across a table of canonical vowel values. The default table (Table 3 in the paper) defines centre frequencies, bandwidths, and amplitudes for ten French vowels positioned in the vowel space by their height (H) and backness (V) coordinates.
+
+Interpolation uses **inverse distance weighting (IDW)**: each vowel in the table contributes to the result weighted by the inverse of its distance from the query point, raised to a configurable power (default: 2 for inverse-square). This allows vowels to be placed at arbitrary (h, v) coordinates without requiring a regular grid structure.
 
 **Paper reference:** Section 4.3.1 (vowel table and interpolation)
 
 **Input parameters:**
 - **H** (vowel height) — selects vertical position in vowel space
 - **V** (vowel backness) — selects horizontal position in vowel space
+
+#### Custom Vowel Tables
+
+Custom vowel tables can be passed to `generateSynthParams()` via the `vowelTable` option. A vowel table consists of an array of vowels, each with an IPA symbol, (h, v) coordinates, and formant data.
+
+```typescript
+import { generateSynthParams, VowelTable, PerceptualParams } from "cantor-digitalis";
+
+const customTable: VowelTable = {
+  vowels: [
+    {
+      ipa: "a",
+      h: 0.5,  // backness: 0 = back, 1 = front
+      v: 1,    // height: 0 = close, 1 = open
+      formants: [
+        { frequency: 700, amplitude: 0, bandwidth: 100 },
+        { frequency: 1200, amplitude: -3, bandwidth: 120 },
+        { frequency: 2500, amplitude: -10, bandwidth: 150 },
+        // ... additional formants
+      ],
+    },
+    // ... additional vowels
+  ],
+  idwPower: 2,  // optional, controls interpolation sharpness
+};
+
+const params: PerceptualParams = { /* ... */ };
+const synthParams = generateSynthParams(params, { vowelTable: customTable });
+```
+
+The `idwPower` parameter controls interpolation behaviour:
+- Higher values (e.g., 3–4) make interpolation more local, with sharper transitions near vowel positions
+- Lower values (e.g., 1) create smoother blending across the entire vowel space
+- Default is 2 (inverse-square weighting)
+
+The default French vowel table is exported as `defaultVowelTable` for reference when creating custom tables.
 
 #### Formant Tuning Rules
 

@@ -12,8 +12,8 @@ import {
   Voice,
   generateSynthParams,
   PerceptualParams,
-  SynthFeatures,
-  vowels,
+  SynthOptions,
+  defaultVowelTable,
 } from "cantor-digitalis";
 
 import {
@@ -35,21 +35,21 @@ import {
  */
 const params: PerceptualParams = {
   pitch: 0, // Normalized melodic position (0-1)
-  pitchOffset: 55, // Base MIDI note number
-  vocalEffort: 0.8, // Perceived force/dynamics (0-1)
+  pitchOffset: 45, // Base MIDI note number
+  vocalEffort: 0.5, // Perceived force/dynamics (0-1)
   vowelHeight: 0.85, // Tongue height: 0=close, 1=open
   vowelBackness: 0.1, // Tongue position: 0=back, 1=front
   tenseness: 0.5, // Vocal fold adduction (0-1)
   breathiness: 0.02, // Aspiration noise amount (0-1)
-  roughness: 0.01, // Jitter/shimmer amount (0-1)
+  roughness: 0.02, // Jitter/shimmer amount (0-1)
   vocalTractSize: 0.28, // Tract size: 0=small, 1=large
   isFalsetto: false, // Laryngeal mechanism: false=M1, true=M2
 };
 
 /**
- * Feature flags to enable/disable various synthesis behaviors.
+ * Options to enable/disable various synthesis behaviors.
  */
-const features: Required<SynthFeatures> = {
+const options: SynthOptions = {
   harmonicCoincidenceAttenuation: true,
   formantFrequencyScaling: true,
   f1Tuning: true,
@@ -79,7 +79,7 @@ let masterGainValue = 1.0;
  */
 function updateVoice(): void {
   if (voice) {
-    const synthParams = generateSynthParams(params, features);
+    const synthParams = generateSynthParams(params, options);
     voice.update(synthParams);
   }
 }
@@ -113,7 +113,7 @@ async function startAudio(): Promise<void> {
 
   // Create voice instance if needed
   if (!voice) {
-    const voiceParams = generateSynthParams(params, features);
+    const voiceParams = generateSynthParams(params, options);
     voice = await Voice.create(audioCtx, voiceParams);
     voice.out.connect(masterGain!);
   }
@@ -262,45 +262,45 @@ const featureCheckboxes: CheckboxConfig[] = [
   {
     id: "harmonicCoincidenceAttenuation",
     label: "Harmonic coincidence attenuation",
-    checked: features.harmonicCoincidenceAttenuation,
+    checked: options.harmonicCoincidenceAttenuation ?? true,
     onChange: (checked) => {
-      features.harmonicCoincidenceAttenuation = checked;
+      options.harmonicCoincidenceAttenuation = checked;
       updateVoice();
     },
   },
   {
     id: "formantFrequencyScaling",
     label: "Formant frequency scaling (K, αS)",
-    checked: features.formantFrequencyScaling,
+    checked: options.formantFrequencyScaling ?? true,
     onChange: (checked) => {
-      features.formantFrequencyScaling = checked;
+      options.formantFrequencyScaling = checked;
       updateVoice();
     },
   },
   {
     id: "f1Tuning",
     label: "F1 tuning (effort + f₀ constraint)",
-    checked: features.f1Tuning,
+    checked: options.f1Tuning ?? true,
     onChange: (checked) => {
-      features.f1Tuning = checked;
+      options.f1Tuning = checked;
       updateVoice();
     },
   },
   {
     id: "f2Tuning",
     label: "F2 tuning (2·f₀ constraint)",
-    checked: features.f2Tuning,
+    checked: options.f2Tuning ?? true,
     onChange: (checked) => {
-      features.f2Tuning = checked;
+      options.f2Tuning = checked;
       updateVoice();
     },
   },
   {
     id: "antiResonanceScaling",
     label: "Anti-resonance scaling (αS)",
-    checked: features.antiResonanceScaling,
+    checked: options.antiResonanceScaling ?? true,
     onChange: (checked) => {
-      features.antiResonanceScaling = checked;
+      options.antiResonanceScaling = checked;
       updateVoice();
     },
   },
@@ -330,7 +330,7 @@ const vowelTooltips: Record<string, string> = {
   a: 'as in "father"',
 };
 
-const vowelButtonConfigs: VowelButtonConfig[] = vowels.map((v) => ({
+const vowelButtonConfigs: VowelButtonConfig[] = defaultVowelTable.vowels.map((v) => ({
   ipa: v.ipa,
   h: v.h,
   v: v.v,

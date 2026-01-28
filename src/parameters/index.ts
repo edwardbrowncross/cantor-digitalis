@@ -9,7 +9,17 @@
  * All normalised parameters range from 0 to 1 unless otherwise noted.
  */
 
-import { interpolateFormants, Formant } from "./vowels";
+import {
+  interpolateFormants,
+  Formant,
+  VowelTable,
+  VowelData,
+  defaultVowelTable,
+} from "./vowels";
+
+// Re-export vowel types for users creating custom tables
+export type { VowelTable, VowelData, Formant };
+export { defaultVowelTable };
 
 export type SynthFormant = {
   /** Formant centre frequency in Hz */
@@ -73,44 +83,59 @@ export type PerceptualParams = {
 };
 
 /**
- * Feature flags for the voice parameter conversion.
- * All features are enabled by default (true). Set to false to disable.
+ * Options for the voice parameter conversion.
  */
-export type SynthFeatures = {
+export type SynthOptions = {
   /**
    * Attenuate formant amplitudes when harmonics coincide with formant frequencies.
    * Paper reference: Section 4.3.7
+   * @default true
    */
   harmonicCoincidenceAttenuation?: boolean;
   /**
    * Scale formant frequencies by larynx position factor (K) and vocal tract size (αS).
    * Paper reference: Sections 4.3.2, 4.3.3
+   * @default true
    */
   formantFrequencyScaling?: boolean;
   /**
    * Raise F1 with vocal effort and constrain it above f₀ + 50 Hz.
    * Paper reference: Section 4.3.4
+   * @default true
    */
   f1Tuning?: boolean;
   /**
    * Constrain F2 above 2·f₀ + 50 Hz.
    * Paper reference: Section 4.3.5
+   * @default true
    */
   f2Tuning?: boolean;
   /**
    * Scale the anti-resonance frequency (F_BQ) by vocal tract size (αS).
    * When disabled, uses nominal 4700 Hz.
+   * @default true
    */
   antiResonanceScaling?: boolean;
+  /**
+   * Custom vowel table for formant interpolation.
+   * If not provided, uses the default French vowel table from Cantor Digitalis.
+   */
+  vowelTable?: VowelTable;
 };
 
-const DEFAULT_FEATURES: Required<SynthFeatures> = {
+/**
+ * @deprecated Use SynthOptions instead
+ */
+export type SynthFeatures = SynthOptions;
+
+const DEFAULT_OPTIONS = {
   harmonicCoincidenceAttenuation: true,
   formantFrequencyScaling: true,
   f1Tuning: true,
   f2Tuning: true,
   antiResonanceScaling: true,
-};
+  vowelTable: defaultVowelTable,
+} as const;
 
 /** Phonation threshold - below this vocal effort, no voiced sound is produced */
 const E_THR = 0.2;
@@ -281,13 +306,13 @@ function computeFormantAttenuation(
  * synthesis parameters needed by the voice engine.
  *
  * @param params - The high-level, perceptual voice parameters
- * @param features - Optional feature flags to enable/disable specific behaviours (all enabled by default)
+ * @param options - Optional configuration including feature flags and custom vowel table
  */
 export function generateSynthParams(
   params: PerceptualParams,
-  features: SynthFeatures = {}
+  options: SynthOptions = {}
 ): SynthParams {
-  const opts = { ...DEFAULT_FEATURES, ...features };
+  const opts = { ...DEFAULT_OPTIONS, ...options };
   const {
     pitch: P,
     pitchOffset: P0,
@@ -332,7 +357,7 @@ export function generateSynthParams(
   const K = computeK(f0);
 
   // Interpolate base formant values from vowel table
-  const baseFormants = interpolateFormants(V, H);
+  const baseFormants = interpolateFormants(V, H, opts.vowelTable);
 
   // Apply formant tuning rules and scaling
   const formants = baseFormants.map((formant: Formant, i: number) => {
