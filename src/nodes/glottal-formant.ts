@@ -23,8 +23,8 @@ const processorCode = `
 class GlottalFormantProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: "Fg", defaultValue: 110, minValue: 20, maxValue: 2000, automationRate: "a-rate" },
-      { name: "Bg", defaultValue: 50, minValue: 10, maxValue: 500, automationRate: "a-rate" },
+      { name: "Fg", defaultValue: 110, minValue: 20, maxValue: 3000, automationRate: "a-rate" },
+      { name: "Bg", defaultValue: 50, minValue: 10, maxValue: 3000, automationRate: "a-rate" },
       { name: "Ag", defaultValue: 1, minValue: 0, maxValue: 10, automationRate: "a-rate" }
     ];
   }
