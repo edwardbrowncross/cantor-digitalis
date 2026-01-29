@@ -1,4 +1,5 @@
 import type { Node } from "./types";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type SpectralTiltParams = {
   /** First stage attenuation in dB at 3000 Hz, derived from E and M */
@@ -118,28 +119,7 @@ class SpectralTiltProcessor extends AudioWorkletProcessor {
 registerProcessor('spectral-tilt-processor', SpectralTiltProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the spectral tilt worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "spectral-tilt-processor";
 
 /**
  * Spectral Tilt (ST)
@@ -211,9 +191,9 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
     ctx: AudioContext,
     params: SpectralTiltParams
   ): Promise<SpectralTilt> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
-    const workletNode = new AudioWorkletNode(ctx, "spectral-tilt-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
     const node = new SpectralTilt(ctx, workletNode);
     node.update(params);
 

@@ -1,4 +1,5 @@
 import type { Node } from "./types";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type NoiseSourceParams = {
   /** Noise amplitude, derived directly from B (breathiness) */
@@ -70,28 +71,7 @@ class NoiseSourceProcessor extends AudioWorkletProcessor {
 registerProcessor('noise-source-processor', NoiseSourceProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the noise source worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "noise-source-processor";
 
 /**
  * Noise Source (NS)
@@ -151,10 +131,10 @@ export class NoiseSource implements Node<NoiseSourceParams> {
     ctx: AudioContext,
     params: NoiseSourceParams
   ): Promise<NoiseSource> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
     // Create noise generator worklet
-    const workletNode = new AudioWorkletNode(ctx, "noise-source-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
 
     // Create Butterworth bandpass as highpass + lowpass cascade
     // Highpass at 1000 Hz

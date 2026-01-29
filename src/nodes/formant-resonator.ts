@@ -1,4 +1,5 @@
 import type { Node } from "./types";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type FormantResonatorParams = {
   /** Formant centre frequency in Hz */
@@ -26,7 +27,7 @@ class FormantResonatorProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       { name: "F", defaultValue: 500, minValue: 100, maxValue: 8000, automationRate: "a-rate" },
-      { name: "B", defaultValue: 100, minValue: 20, maxValue: 1000, automationRate: "a-rate" },
+      { name: "B", defaultValue: 100, minValue: 10, maxValue: 4000, automationRate: "a-rate" },
       { name: "A", defaultValue: 1, minValue: 0, maxValue: 10, automationRate: "a-rate" }
     ];
   }
@@ -113,28 +114,7 @@ class FormantResonatorProcessor extends AudioWorkletProcessor {
 registerProcessor('formant-resonator-processor', FormantResonatorProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the formant resonator worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "formant-resonator-processor";
 
 /**
  * Formant Resonator (Ri)
@@ -205,9 +185,9 @@ export class FormantResonator implements Node<FormantResonatorParams> {
     ctx: AudioContext,
     params: FormantResonatorParams
   ): Promise<FormantResonator> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
-    const workletNode = new AudioWorkletNode(ctx, "formant-resonator-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
     const node = new FormantResonator(ctx, workletNode);
     node.update(params);
 

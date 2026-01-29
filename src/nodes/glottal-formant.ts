@@ -1,4 +1,5 @@
 import type { Node } from "./types";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type GlottalFormantParams = {
   /** Glottal formant centre frequency in Hz, computed as f0 / (2 * Oq) */
@@ -101,28 +102,7 @@ class GlottalFormantProcessor extends AudioWorkletProcessor {
 registerProcessor('glottal-formant-processor', GlottalFormantProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the glottal formant worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "glottal-formant-processor";
 
 /**
  * Glottal Formant (GF)
@@ -190,9 +170,9 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
     ctx: AudioContext,
     params: GlottalFormantParams
   ): Promise<GlottalFormant> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
-    const workletNode = new AudioWorkletNode(ctx, "glottal-formant-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
     const node = new GlottalFormant(ctx, workletNode);
     node.update(params);
 

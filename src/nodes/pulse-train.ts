@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { Gain } from "./gain";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type PulseTrainParams = {
   /** Fundamental frequency in Hz (derived from P, P₀) */
@@ -172,28 +173,7 @@ class PulseTrainProcessor extends AudioWorkletProcessor {
 registerProcessor('pulse-train-processor', PulseTrainProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the pulse train worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "pulse-train-processor";
 
 /**
  * Pulse Train (Voiced Excitation Source)
@@ -249,9 +229,9 @@ export class PulseTrain implements Node<PulseTrainParams> {
   }
 
   static async create(ctx: AudioContext, params: PulseTrainParams): Promise<PulseTrain> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
-    const workletNode = new AudioWorkletNode(ctx, "pulse-train-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
     const gain = await Gain.create(ctx, { gain: 0 });
 
     workletNode.connect(gain.in);

@@ -1,4 +1,5 @@
 import type { Node } from "./types";
+import { registerWorkletOnce } from "./worklet-utils";
 
 export type AntiResonanceParams = {
   /** Anti-formant centre frequency in Hz (nominally 4700 Hz, scaled by αS) */
@@ -111,28 +112,7 @@ class AntiResonanceProcessor extends AudioWorkletProcessor {
 registerProcessor('anti-resonance-processor', AntiResonanceProcessor);
 `;
 
-// Track whether the worklet module has been registered
-let moduleRegistered = false;
-
-/**
- * Registers the anti-resonance worklet module with the AudioContext.
- * Only registers once per application lifetime.
- */
-async function ensureModuleRegistered(ctx: AudioContext): Promise<void> {
-  if (moduleRegistered) {
-    return;
-  }
-
-  const blob = new Blob([processorCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
-
-  try {
-    await ctx.audioWorklet.addModule(url);
-    moduleRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
+const PROCESSOR_NAME = "anti-resonance-processor";
 
 /**
  * Hypo-pharynx Anti-Resonance Filter (BQ)
@@ -193,9 +173,9 @@ export class AntiResonance implements Node<AntiResonanceParams> {
     ctx: AudioContext,
     params: AntiResonanceParams
   ): Promise<AntiResonance> {
-    await ensureModuleRegistered(ctx);
+    await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
-    const workletNode = new AudioWorkletNode(ctx, "anti-resonance-processor");
+    const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
     const node = new AntiResonance(ctx, workletNode);
     node.update(params);
 
