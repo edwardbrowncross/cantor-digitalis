@@ -155,4 +155,5 @@ export const englishVowelTable: VowelTable = {
     },
   ],
   idwPower: 2,
+  sourceVocalTractSize: 0.28,
 };

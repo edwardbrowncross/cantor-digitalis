@@ -353,6 +353,9 @@ export function generateSynthParams(
   const shimmerDepth = R * 1.0;
 
   // Compute vocal tract scaling factors
+  // sourceAlphaS is the scale factor for the vocal tract of the person whose vowels are in the table
+  const sourceAlphaS = opts.vowelTable?.sourceVocalTractSize ? computeAlphaS(opts.vowelTable.sourceVocalTractSize) : 1.0;
+  // alphaS is the scale factor for the desired vocal tract size
   const alphaS = computeAlphaS(S);
   const K = computeK(f0);
 
@@ -362,7 +365,7 @@ export function generateSynthParams(
   // Apply formant tuning rules and scaling
   const formants = baseFormants.map((formant: Formant, i: number) => {
     // Base frequency, optionally scaled by K and alphaS
-    const scaleFactor = opts.formantFrequencyScaling ? K * alphaS : 1;
+    const scaleFactor = opts.formantFrequencyScaling ? K * alphaS / sourceAlphaS : 1;
     let F = scaleFactor * formant.frequency;
 
     // F1 tuning (Section 4.3.4): raised with effort, constrained above f0

@@ -35,6 +35,12 @@ export interface VowelTable {
   vowels: VowelData[];
   /** Power parameter for inverse distance weighting (default: 2) */
   idwPower?: number;
+  /**
+   * Vocal tract size (0-1) of the source speaker whose vowels are in this table.
+   * This allows correct scaling when the target vocal tract size differs from the source.
+   * Default: 0.29 (produces alphaS ≈ 1.0, the neutral reference point)
+   */
+  sourceVocalTractSize?: number;
 }
 
 /** Default IDW power (inverse square weighting) */

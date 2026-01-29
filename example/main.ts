@@ -51,7 +51,7 @@ const params: PerceptualParams = {
   tenseness: 0.5, // Vocal fold adduction (0-1)
   breathiness: 0.02, // Aspiration noise amount (0-1)
   roughness: 0.02, // Jitter/shimmer amount (0-1)
-  vocalTractSize: 0.28, // Tract size: 0=small, 1=large
+  vocalTractSize: 0.29, // Tract size: 0=large, 1=small
   isFalsetto: false, // Laryngeal mechanism: false=M1, true=M2
 };
 
