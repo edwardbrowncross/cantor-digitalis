@@ -22,6 +22,8 @@ export interface VowelData {
   v: number;
   /** Formant data (frequency, amplitude, bandwidth) for each resonator */
   formants: Formant[];
+  /** Optional dB adjustment applied to all formant amplitudes for volume normalization */
+  volumeAdjustment?: number;
 }
 
 /**
@@ -86,7 +88,11 @@ export function interpolateFormants(
   const minDist = Math.min(...distances);
   if (minDist < EPSILON) {
     const exactMatch = vowels[distances.indexOf(minDist)];
-    return exactMatch.formants.map((f) => ({ ...f }));
+    const volAdj = exactMatch.volumeAdjustment ?? 0;
+    return exactMatch.formants.map((f) => ({
+      ...f,
+      amplitude: f.amplitude + volAdj,
+    }));
   }
 
   // Compute inverse distance weights
@@ -108,12 +114,13 @@ export function interpolateFormants(
       const f = vowels[j].formants[i];
       if (f) {
         frequency += w * f.frequency;
-        amplitude += w * f.amplitude;
+        amplitude += w * (f.amplitude + (vowels[j].volumeAdjustment ?? 0));
         bandwidth += w * f.bandwidth;
       }
     }
 
-    result.push({ frequency, amplitude, bandwidth });
+    // Apply interpolated volume adjustment to amplitude
+    result.push({ frequency, amplitude: amplitude, bandwidth });
   }
 
   return result;

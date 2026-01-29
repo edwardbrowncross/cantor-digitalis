@@ -115,6 +115,7 @@ const customTable: VowelTable = {
       ipa: "u",
       h: 0, v: 0,
       formants: [/* ... */],
+      volumeAdjustment: -5, // optional: balance overall amplitude for this vowel
     },
   ],
   idwPower: 2,  // optional: interpolation sharpness (default: 2)
