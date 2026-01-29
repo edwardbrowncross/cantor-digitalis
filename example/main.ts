@@ -13,6 +13,7 @@ import {
   generateSynthParams,
   PerceptualParams,
   SynthOptions,
+  VowelTable,
   defaultVowelTable,
 } from "cantor-digitalis";
 
@@ -23,11 +24,19 @@ import {
   SliderConfig,
   CheckboxConfig,
   VowelButtonConfig,
+  DropdownConfig,
 } from "./ui";
+import { englishVowelTable } from "./vowels";
 
 // ============================================================================
 // Voice Parameters
 // ============================================================================
+
+/** Map of vowel table names to tables */
+const vowelTables: Record<string, VowelTable> = {
+  french: defaultVowelTable,
+  english: englishVowelTable,
+};
 
 /**
  * Perceptual voice parameters - the high-level controls for the synthesizer.
@@ -316,8 +325,9 @@ const falsettoCheckbox: CheckboxConfig = {
   },
 };
 
-// English example words for each vowel (French vowels mapped to closest English equivalents)
+// Example words for vowels
 const vowelTooltips: Record<string, string> = {
+  // French vowels
   i: 'as in "feet"',
   e: 'as in "may"',
   ɛ: 'as in "bet"',
@@ -328,17 +338,50 @@ const vowelTooltips: Record<string, string> = {
   o: 'as in "go"',
   ɔ: 'as in "caught"',
   a: 'as in "father"',
+  // English vowels
+  "iː": 'as in "fleece"',
+  ɪ: 'as in "kit"',
+  æ: 'as in "trap"',
+  "ɑː": 'as in "heart"',
+  ɒ: 'as in "lot"',
+  "ɔː": 'as in "thought"',
+  ʊ: 'as in "foot"',
+  "uː": 'as in "goose"',
+  "ɜː": 'as in "nurse"',
 };
 
-const vowelButtonConfigs: VowelButtonConfig[] = defaultVowelTable.vowels.map((v) => ({
-  ipa: v.ipa,
-  h: v.h,
-  v: v.v,
-  tooltip: vowelTooltips[v.ipa] || v.ipa,
-}));
+/** Current vowel table key */
+let currentVowelTableKey = "french";
+
+/** Get vowel button configs from a vowel table */
+function getVowelButtonConfigs(table: VowelTable): VowelButtonConfig[] {
+  return table.vowels.map((v) => ({
+    ipa: v.ipa,
+    h: v.h,
+    v: v.v,
+    tooltip: vowelTooltips[v.ipa] || v.ipa,
+  }));
+}
+
+let vowelButtonConfigs = getVowelButtonConfigs(defaultVowelTable);
+
+// Mutable handler for vowel table changes (set after UI creation)
+let onVowelTableChange: (value: string) => void = () => {};
+
+// Vowel table dropdown config
+const vowelTableDropdown: DropdownConfig = {
+  id: "vowelTable",
+  label: "Vowel Table",
+  options: [
+    { value: "french", label: "Cantor Digitalis (French)" },
+    { value: "english", label: "Author Recorded (British English) " },
+  ],
+  value: currentVowelTableKey,
+  onChange: (value) => onVowelTableChange(value),
+};
 
 // Create the UI and mount it
-const { container, spectrumCanvas } = createControlPanel(
+const { container, spectrumCanvas, updateVowelButtons } = createControlPanel(
   paramSliders,
   featureCheckboxes,
   falsettoCheckbox,
@@ -351,7 +394,17 @@ const { container, spectrumCanvas } = createControlPanel(
     params.vowelBackness = h;
     params.vowelHeight = v;
     updateVoice();
-  }
+  },
+  vowelTableDropdown
 );
+
+// Now set the actual handler
+onVowelTableChange = (value: string) => {
+  currentVowelTableKey = value;
+  const newTable = vowelTables[value];
+  options.vowelTable = newTable;
+  updateVowelButtons(getVowelButtonConfigs(newTable));
+  updateVoice();
+};
 
 document.getElementById("app")!.appendChild(container);

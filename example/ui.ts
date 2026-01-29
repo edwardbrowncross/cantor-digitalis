@@ -20,6 +20,19 @@ export interface CheckboxConfig {
   onChange: (checked: boolean) => void;
 }
 
+export interface DropdownOption {
+  value: string;
+  label: string;
+}
+
+export interface DropdownConfig {
+  id: string;
+  label: string;
+  options: DropdownOption[];
+  value: string;
+  onChange: (value: string) => void;
+}
+
 export interface UICallbacks {
   onStart: () => Promise<void>;
   onStop: () => void;
@@ -96,6 +109,40 @@ export function createCheckbox(container: HTMLElement, config: CheckboxConfig): 
   container.appendChild(row);
 
   return checkbox;
+}
+
+export function createDropdown(container: HTMLElement, config: DropdownConfig): HTMLSelectElement {
+  const { id, label, options, value, onChange } = config;
+
+  const row = document.createElement("div");
+  row.className = "dropdown-row";
+
+  const labelEl = document.createElement("label");
+  labelEl.htmlFor = id;
+  labelEl.textContent = label;
+
+  const select = document.createElement("select");
+  select.id = id;
+
+  for (const option of options) {
+    const optionEl = document.createElement("option");
+    optionEl.value = option.value;
+    optionEl.textContent = option.label;
+    if (option.value === value) {
+      optionEl.selected = true;
+    }
+    select.appendChild(optionEl);
+  }
+
+  select.addEventListener("change", () => {
+    onChange(select.value);
+  });
+
+  row.appendChild(labelEl);
+  row.appendChild(select);
+  container.appendChild(row);
+
+  return select;
 }
 
 export class SpectrumAnalyzer {
@@ -213,8 +260,14 @@ export function createControlPanel(
   falsettoCheckbox: CheckboxConfig,
   callbacks: UICallbacks,
   vowelButtons?: VowelButtonConfig[],
-  onVowelSelect?: (h: number, v: number) => void
-): { container: HTMLElement; spectrumCanvas: HTMLCanvasElement; sliderRefs: SliderRefs } {
+  onVowelSelect?: (h: number, v: number) => void,
+  vowelTableDropdown?: DropdownConfig
+): {
+  container: HTMLElement;
+  spectrumCanvas: HTMLCanvasElement;
+  sliderRefs: SliderRefs;
+  updateVowelButtons: (buttons: VowelButtonConfig[]) => void;
+} {
   const controls = document.createElement("div");
   controls.className = "controls";
 
@@ -235,17 +288,14 @@ export function createControlPanel(
   createCheckbox(controls, falsettoCheckbox);
 
   // Vowel buttons section
-  if (vowelButtons && onVowelSelect) {
-    const vowelSection = document.createElement("div");
-    vowelSection.className = "vowel-section";
-    const vowelHeader = document.createElement("h3");
-    vowelHeader.textContent = "Vowels";
-    vowelSection.appendChild(vowelHeader);
+  let vowelContainer: HTMLElement | null = null;
+  let currentOnVowelSelect = onVowelSelect;
 
-    const vowelContainer = document.createElement("div");
-    vowelContainer.className = "vowel-buttons";
+  const createVowelButtons = (buttons: VowelButtonConfig[]) => {
+    if (!vowelContainer || !currentOnVowelSelect) return;
+    vowelContainer.innerHTML = "";
 
-    for (const vowel of vowelButtons) {
+    for (const vowel of buttons) {
       const btn = document.createElement("button");
       btn.className = "vowel-btn";
       btn.textContent = vowel.ipa;
@@ -260,10 +310,28 @@ export function createControlPanel(
           sliderRefs.vowelBackness.value = String(vowel.h);
           sliderRefs.vowelBackness.dispatchEvent(new Event("input"));
         }
-        onVowelSelect(vowel.h, vowel.v);
+        currentOnVowelSelect!(vowel.h, vowel.v);
       });
       vowelContainer.appendChild(btn);
     }
+  };
+
+  if (vowelButtons && onVowelSelect) {
+    const vowelSection = document.createElement("div");
+    vowelSection.className = "vowel-section";
+    const vowelHeader = document.createElement("h3");
+    vowelHeader.textContent = "Vowels";
+    vowelSection.appendChild(vowelHeader);
+
+    // Add vowel table dropdown if provided
+    if (vowelTableDropdown) {
+      createDropdown(vowelSection, vowelTableDropdown);
+    }
+
+    vowelContainer = document.createElement("div");
+    vowelContainer.className = "vowel-buttons";
+
+    createVowelButtons(vowelButtons);
 
     vowelSection.appendChild(vowelContainer);
     controls.appendChild(vowelSection);
@@ -318,5 +386,10 @@ export function createControlPanel(
   spectrumCanvas.height = 200;
   controls.appendChild(spectrumCanvas);
 
-  return { container: controls, spectrumCanvas, sliderRefs: sliderRefs as SliderRefs };
+  return {
+    container: controls,
+    spectrumCanvas,
+    sliderRefs: sliderRefs as SliderRefs,
+    updateVowelButtons: createVowelButtons,
+  };
 }
