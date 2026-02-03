@@ -1,6 +1,6 @@
 {
   "name": "cantor-digitalis",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A physically-informed source-filter model for singing voice synthesis using the Web Audio API",
   "type": "module",
   "main": "./dist/index.js",
