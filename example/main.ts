@@ -132,7 +132,14 @@ async function startAudio(): Promise<void> {
 
   // Start spectrum visualization
   if (analyser && spectrumCanvas) {
-    spectrumAnalyzer = new SpectrumAnalyzer(spectrumCanvas, analyser);
+    const getFrequencyResponse = (frequencies: number[], sampleRate: number) => {
+      return voice?.getFrequencyResponse(frequencies, sampleRate) ?? null;
+    };
+    spectrumAnalyzer = new SpectrumAnalyzer(
+      spectrumCanvas,
+      analyser,
+      getFrequencyResponse
+    );
     spectrumAnalyzer.start();
   }
 }

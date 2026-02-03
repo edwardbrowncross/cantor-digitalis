@@ -145,14 +145,25 @@ export function createDropdown(container: HTMLElement, config: DropdownConfig): 
   return select;
 }
 
+export type FrequencyResponseGetter = (
+  frequencies: number[],
+  sampleRate: number
+) => number[] | null;
+
 export class SpectrumAnalyzer {
   private canvas: HTMLCanvasElement;
   private analyser: AnalyserNode;
   private animationId: number | null = null;
+  private getFrequencyResponse: FrequencyResponseGetter | null;
 
-  constructor(canvas: HTMLCanvasElement, analyser: AnalyserNode) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    analyser: AnalyserNode,
+    getFrequencyResponse?: FrequencyResponseGetter
+  ) {
     this.canvas = canvas;
     this.analyser = analyser;
+    this.getFrequencyResponse = getFrequencyResponse ?? null;
   }
 
   start(): void {
@@ -229,6 +240,49 @@ export class SpectrumAnalyzer {
       }
     }
     ctx.stroke();
+
+    // Draw frequency response envelope
+    if (this.getFrequencyResponse) {
+      // Generate frequency points for the response curve
+      const numPoints = width;
+      const frequencies: number[] = [];
+      for (let x = 0; x < numPoints; x++) {
+        frequencies.push(minFreq + (x / width) * (maxFreq - minFreq));
+      }
+
+      const response = this.getFrequencyResponse(frequencies, sampleRate);
+      if (response) {
+        // Convert to dB
+        const responseDb = response.map((a) =>
+          a <= 0 ? -Infinity : 20 * Math.log10(a)
+        );
+
+        // Draw the response curve
+        ctx.strokeStyle = "#f80";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        let envelopeStarted = false;
+        for (let x = 0; x < numPoints; x++) {
+          const db = responseDb[x] - 60; // Offset to align with spectrum
+          if (!isFinite(db)) continue;
+
+          const normalizedDb = Math.max(
+            0,
+            Math.min(1, (db - minDb) / (maxDb - minDb))
+          );
+          const y = height - normalizedDb * height;
+
+          if (!envelopeStarted) {
+            ctx.moveTo(x, y);
+            envelopeStarted = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      }
+    }
 
     // Draw axis labels
     ctx.fillStyle = "#888";
