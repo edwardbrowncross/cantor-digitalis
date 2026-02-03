@@ -2,6 +2,7 @@ import type { Node } from "./types";
 import { FormantBank } from "./formant-bank";
 import { FormantResonator, FormantResonatorParams } from "./formant-resonator";
 import { AntiResonance } from "./anti-resonance";
+import { combineSeries } from "../utils/frequency-response";
 
 export type VocalTractParams = {
   /** Array of formant parameters (F, B, A) for each resonator */
@@ -123,5 +124,22 @@ export class VocalTract implements Node<VocalTractParams> {
   destroy(): void {
     this.formantBank.destroy();
     this.antiResonance.destroy();
+  }
+
+  /**
+   * Computes the frequency response of the vocal tract.
+   *
+   * The response is the formant bank (parallel) followed by the anti-resonance (series).
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const formantResponse = this.formantBank.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    const antiResonanceResponse = this.antiResonance.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    return combineSeries(formantResponse, antiResonanceResponse);
   }
 }

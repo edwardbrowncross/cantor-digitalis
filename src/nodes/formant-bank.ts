@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { FormantResonator, FormantResonatorParams } from "./formant-resonator";
+import { combineParallel } from "../utils/frequency-response";
 
 export type FormantBankParams = {
   /** Array of formant parameters, one per resonator */
@@ -140,5 +141,17 @@ export class FormantBank implements Node<FormantBankParams> {
     }
 
     this.resonators = [];
+  }
+
+  /**
+   * Computes the frequency response of the formant bank.
+   *
+   * The response is the sum of all parallel formant resonators.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const responses = this.resonators.map((r) =>
+      r.getFrequencyResponse(frequencies, sampleRate)
+    );
+    return combineParallel(...responses);
   }
 }

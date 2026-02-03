@@ -34,4 +34,14 @@ export class Gain implements Node<GainParams> {
   get gain(): AudioParam {
     return this.gainNode.gain;
   }
+
+  /**
+   * Computes the frequency response of the gain node.
+   *
+   * Returns an array filled with the current gain value (flat response).
+   */
+  getFrequencyResponse(frequencies: number[], _sampleRate: number): number[] {
+    const gainValue = this.gainNode.gain.value;
+    return frequencies.map(() => gainValue);
+  }
 }

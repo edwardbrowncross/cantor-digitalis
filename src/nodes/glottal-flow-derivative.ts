@@ -4,6 +4,7 @@ import { GlottalFormant } from "./glottal-formant";
 import { SpectralTilt } from "./spectral-tilt";
 import { NoiseSource } from "./noise-source";
 import { Gain } from "./gain";
+import { combineSeries } from "../utils/frequency-response";
 
 export type GlottalFlowDerivativeParams = {
   /** Fundamental frequency in Hz (derived from P, P₀) */
@@ -214,5 +215,23 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
     this.noiseSource.destroy();
     this.noiseModulator.disconnect();
     this.outputGain.destroy();
+  }
+
+  /**
+   * Computes the frequency response of the glottal flow derivative filter chain.
+   *
+   * Returns the response of the voiced path: GlottalFormant → SpectralTilt.
+   * The noise path has its own bandpass filtering but is mixed separately.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const gfResponse = this.glottalFormant.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    const stResponse = this.spectralTilt.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    return combineSeries(gfResponse, stResponse);
   }
 }

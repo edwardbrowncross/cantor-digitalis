@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { registerWorkletOnce } from "./worklet-utils";
+import { evaluateBiquad } from "../utils/frequency-response";
 
 export type GlottalFormantParams = {
   /** Glottal formant centre frequency in Hz, computed as f0 / (2 * Oq) */
@@ -191,5 +192,30 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
 
   destroy(): void {
     this.workletNode.disconnect();
+  }
+
+  /**
+   * Computes the frequency response of the glottal formant filter.
+   *
+   * Uses current values of Fg, Bg, and Ag parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const Fg = this.Fg.value;
+    const Bg = this.Bg.value;
+    const Ag = this.Ag.value;
+
+    const Ts = 1 / sampleRate;
+    const R = Math.exp(-Math.PI * Bg * Ts);
+
+    // Numerator: -Ag*z^{-1} + Ag*z^{-2} = [0, -Ag, Ag]
+    const b: [number, number, number] = [0, -Ag, Ag];
+
+    // Denominator: 1 - 2R*cos(θ)*z^{-1} + R²*z^{-2}
+    const theta = 2 * Math.PI * Fg * Ts;
+    const a1 = -2 * R * Math.cos(theta);
+    const a2 = R * R;
+    const a: [number, number, number] = [1, a1, a2];
+
+    return evaluateBiquad(b, a, frequencies, sampleRate);
   }
 }

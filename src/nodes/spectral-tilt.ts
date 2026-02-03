@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { registerWorkletOnce } from "./worklet-utils";
+import { evaluateFirstOrder, combineSeries } from "../utils/frequency-response";
 
 export type SpectralTiltParams = {
   /** First stage attenuation in dB at 3000 Hz, derived from E and M */
@@ -211,5 +212,48 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
 
   destroy(): void {
     this.workletNode.disconnect();
+  }
+
+  /**
+   * Computes the coefficients for a single spectral tilt stage.
+   * Returns [a, g] where a is the pole coefficient and g is the gain.
+   */
+  private computeStageCoefficients(
+    Tl: number,
+    sampleRate: number
+  ): [number, number] {
+    if (Tl <= 0) {
+      return [0, 1]; // Bypass
+    }
+
+    const Ts = 1 / sampleRate;
+    const cosOmega = Math.cos(2 * Math.PI * 3000 * Ts);
+    const attenuationRatio = Math.pow(10, Tl / 10);
+    const nu = 1 + (1 - cosOmega) / (attenuationRatio - 1);
+    const a = nu - Math.sqrt(nu * nu - 1);
+    const g = 1 - a;
+
+    return [a, g];
+  }
+
+  /**
+   * Computes the frequency response of the spectral tilt filter.
+   *
+   * Uses current values of Tl1 and Tl2 parameters.
+   * The response is the product of two cascaded first-order filters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const Tl1 = this.Tl1.value;
+    const Tl2 = this.Tl2.value;
+
+    const [a1, g1] = this.computeStageCoefficients(Tl1, sampleRate);
+    const [a2, g2] = this.computeStageCoefficients(Tl2, sampleRate);
+
+    // Each stage: H(z) = g / (1 - a*z^{-1})
+    // In standard form: b = [g, 0], a = [1, -a]
+    const response1 = evaluateFirstOrder([g1, 0], [1, -a1], frequencies, sampleRate);
+    const response2 = evaluateFirstOrder([g2, 0], [1, -a2], frequencies, sampleRate);
+
+    return combineSeries(response1, response2);
   }
 }

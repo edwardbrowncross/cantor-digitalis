@@ -59,3 +59,12 @@ export type { AntiResonanceParams } from "./nodes/anti-resonance";
 
 export { Gain } from "./nodes/gain";
 export type { GainParams } from "./nodes/gain";
+
+// Frequency response utilities
+export {
+  evaluateBiquad,
+  evaluateFirstOrder,
+  linearToDb,
+  combineSeries,
+  combineParallel,
+} from "./utils/frequency-response";

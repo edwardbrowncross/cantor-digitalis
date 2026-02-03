@@ -260,4 +260,14 @@ export class PulseTrain implements Node<PulseTrainParams> {
   stop() {
     this.gain.update({ gain: 0 });
   }
+
+  /**
+   * Returns flat frequency response (1.0 at all frequencies).
+   *
+   * PulseTrain is a source node that generates signal, not a filter.
+   * The response represents that no frequency-dependent filtering is applied.
+   */
+  getFrequencyResponse(frequencies: number[], _sampleRate: number): number[] {
+    return frequencies.map(() => 1);
+  }
 }

@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { registerWorkletOnce } from "./worklet-utils";
+import { evaluateBiquad } from "../utils/frequency-response";
 
 export type AntiResonanceParams = {
   /** Anti-formant centre frequency in Hz (nominally 4700 Hz, scaled by αS) */
@@ -193,5 +194,29 @@ export class AntiResonance implements Node<AntiResonanceParams> {
 
   destroy(): void {
     this.workletNode.disconnect();
+  }
+
+  /**
+   * Computes the frequency response of the anti-resonance (notch) filter.
+   *
+   * Uses current values of F and Q parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const F = this.F.value;
+    const Q = this.Q.value;
+
+    const Ts = 1 / sampleRate;
+    const omega = 2 * Math.PI * F * Ts;
+    const alpha = Math.sin(omega) / (2 * Q);
+    const beta = -2 * Math.cos(omega);
+    const a0 = 1 + alpha;
+
+    // Numerator: (1 + β*z^{-1} + z^{-2}) / a0
+    const b: [number, number, number] = [1 / a0, beta / a0, 1 / a0];
+
+    // Denominator: normalized so a0 = 1
+    const a: [number, number, number] = [1, beta / a0, (1 - alpha) / a0];
+
+    return evaluateBiquad(b, a, frequencies, sampleRate);
   }
 }

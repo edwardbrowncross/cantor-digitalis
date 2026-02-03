@@ -3,6 +3,7 @@ import { GlottalFlowDerivative } from "./glottal-flow-derivative";
 import { VocalTract } from "./vocal-tract";
 import { Gain } from "./gain";
 import { SynthParams } from "../parameters";
+import { combineSeries } from "../utils/frequency-response";
 
 /**
  * Voice Synthesizer
@@ -156,5 +157,26 @@ export class Voice implements Node<SynthParams> {
     this.glottalFlowDerivative.destroy();
     this.vocalTract.destroy();
     this.outputGainNode.destroy();
+  }
+
+  /**
+   * Computes the frequency response of the complete voice synthesizer.
+   *
+   * Returns the response of the full chain: Source → VocalTract → OutputGain.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const sourceResponse = this.glottalFlowDerivative.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    const tractResponse = this.vocalTract.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    const gainResponse = this.outputGainNode.getFrequencyResponse(
+      frequencies,
+      sampleRate
+    );
+    return combineSeries(sourceResponse, tractResponse, gainResponse);
   }
 }

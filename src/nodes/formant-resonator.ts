@@ -1,5 +1,6 @@
 import type { Node } from "./types";
 import { registerWorkletOnce } from "./worklet-utils";
+import { evaluateBiquad } from "../utils/frequency-response";
 
 export type FormantResonatorParams = {
   /** Formant centre frequency in Hz */
@@ -206,5 +207,33 @@ export class FormantResonator implements Node<FormantResonatorParams> {
 
   destroy(): void {
     this.workletNode.disconnect();
+  }
+
+  /**
+   * Computes the frequency response of the formant resonator.
+   *
+   * Uses current values of F, B, and A parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+    const F = this.F.value;
+    const B = this.B.value;
+    const A = this.A.value;
+
+    const Ts = 1 / sampleRate;
+    const R = Math.exp(-Math.PI * B * Ts);
+    const theta = 2 * Math.PI * F * Ts;
+    const g = 1 - R;
+
+    // Numerator: A*g + 0*z^{-1} - A*g*R*z^{-2}
+    const b0 = A * g;
+    const b2 = -A * g * R;
+    const b: [number, number, number] = [b0, 0, b2];
+
+    // Denominator: 1 - 2R*cos(θ)*z^{-1} + R²*z^{-2}
+    const a1 = -2 * R * Math.cos(theta);
+    const a2 = R * R;
+    const a: [number, number, number] = [1, a1, a2];
+
+    return evaluateBiquad(b, a, frequencies, sampleRate);
   }
 }
