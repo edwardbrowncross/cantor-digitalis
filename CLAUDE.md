@@ -206,6 +206,61 @@ formant.out.connect(ctx.destination);
 pulseTrain.start();
 ```
 
+### Frequency Response Analysis
+
+All nodes implement `getFrequencyResponse(frequencies, sampleRate)` to compute their magnitude response at specified frequencies. This enables visualisation (e.g., spectrum plots) and analysis without requiring audio processing.
+
+```typescript
+// Generate frequency points (logarithmic scale, 20 Hz to 20 kHz)
+const frequencies = Array.from({ length: 500 }, (_, i) =>
+  20 * Math.pow(1000, i / 499)
+);
+
+// Get response from any node
+const response = voice.getFrequencyResponse(frequencies, ctx.sampleRate);
+
+// Convert to dB for plotting
+import { linearToDb } from "cantor-digitalis";
+const responseDb = linearToDb(response);
+```
+
+**Hierarchical responses:** Composite nodes return the combined response of their children:
+- `Voice.getFrequencyResponse()` returns Source × VocalTract × OutputGain
+- `VocalTract.getFrequencyResponse()` returns FormantBank × AntiResonance
+- `FormantBank.getFrequencyResponse()` returns the sum of all parallel formants
+- `GlottalFlowDerivative.getFrequencyResponse()` returns GlottalFormant × SpectralTilt
+
+**Individual node responses:** Access sub-nodes for component analysis:
+
+```typescript
+// Vocal tract only (formants + anti-resonance)
+const tractResponse = voice.tract.getFrequencyResponse(frequencies, ctx.sampleRate);
+
+// Single formant
+const f1Response = voice.tract.formants[0].getFrequencyResponse(frequencies, ctx.sampleRate);
+
+// Anti-resonance notch
+const notchResponse = voice.tract.antiResonanceNode.getFrequencyResponse(frequencies, ctx.sampleRate);
+
+// Source spectrum (glottal formant + tilt)
+const sourceResponse = voice.source.getFrequencyResponse(frequencies, ctx.sampleRate);
+```
+
+**Utility functions:** The `utils/frequency-response` module provides helpers for working with responses:
+
+```typescript
+import { linearToDb, combineSeries, combineParallel } from "cantor-digitalis";
+
+// Convert to dB
+const dbValues = linearToDb(response);
+
+// Combine filters in series (multiply)
+const cascaded = combineSeries(filter1Response, filter2Response);
+
+// Combine filters in parallel (sum)
+const parallel = combineParallel(formant1Response, formant2Response);
+```
+
 ## Key voice parameters
 
 The synthesiser will expose the following key parameters for voice synthesis. They will be fed into all relevant modules.

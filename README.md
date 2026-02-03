@@ -201,6 +201,26 @@ formant.out.connect(ctx.destination);
 pulseTrain.start();
 ```
 
+## Frequency Response Analysis
+
+All nodes provide `getFrequencyResponse(frequencies, sampleRate)` for computing magnitude response at specified frequencies, useful for visualisation and analysis.
+
+```typescript
+import { linearToDb } from "cantor-digitalis";
+
+// Generate log-spaced frequencies from 20 Hz to 20 kHz
+const frequencies = Array.from({ length: 500 }, (_, i) => 20 * Math.pow(1000, i / 499));
+
+// Get response from the complete voice...
+const voiceResponse = voice.getFrequencyResponse(frequencies, ctx.sampleRate);
+// ...or individual components
+const tractResponse = voice.tract.getFrequencyResponse(frequencies, ctx.sampleRate);
+const f1Response = voice.tract.formants[0].getFrequencyResponse(frequencies, ctx.sampleRate);
+
+// Convert to dB for plotting
+const responseDb = linearToDb(voiceResponse);
+```
+
 ## License
 
 ISC
