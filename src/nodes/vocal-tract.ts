@@ -127,11 +127,40 @@ export class VocalTract implements Node<VocalTractParams> {
   }
 
   /**
+   * Computes the frequency response of the vocal tract (static version).
+   *
+   * This static method allows frequency response calculation without an AudioContext.
+   * The response is the formant bank (parallel) followed by the anti-resonance (series).
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The vocal tract parameters (formants array, F_BQ, Q_BQ)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
+   */
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: { formants: FormantResonatorParams[]; F_BQ: number; Q_BQ: number },
+    sampleRate: number = 96000
+  ): number[] {
+    const formantResponse = FormantBank.getFrequencyResponse(
+      frequencies,
+      params.formants,
+      sampleRate
+    );
+    const antiResonanceResponse = AntiResonance.getFrequencyResponse(
+      frequencies,
+      { F: params.F_BQ, Q: params.Q_BQ },
+      sampleRate
+    );
+    return combineSeries(formantResponse, antiResonanceResponse);
+  }
+
+  /**
    * Computes the frequency response of the vocal tract.
    *
    * The response is the formant bank (parallel) followed by the anti-resonance (series).
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
     const formantResponse = this.formantBank.getFrequencyResponse(
       frequencies,
       sampleRate

@@ -144,11 +144,33 @@ export class FormantBank implements Node<FormantBankParams> {
   }
 
   /**
+   * Computes the frequency response of the formant bank (static version).
+   *
+   * This static method allows frequency response calculation without an AudioContext.
+   * The response is the sum of all parallel formant resonators.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param formants Array of formant parameters (F, B, A) for each resonator
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
+   */
+  static getFrequencyResponse(
+    frequencies: number[],
+    formants: FormantResonatorParams[],
+    sampleRate: number = 96000
+  ): number[] {
+    const responses = formants.map((params) =>
+      FormantResonator.getFrequencyResponse(frequencies, params, sampleRate)
+    );
+    return combineParallel(...responses);
+  }
+
+  /**
    * Computes the frequency response of the formant bank.
    *
    * The response is the sum of all parallel formant resonators.
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
     const responses = this.resonators.map((r) =>
       r.getFrequencyResponse(frequencies, sampleRate)
     );

@@ -262,12 +262,26 @@ export class PulseTrain implements Node<PulseTrainParams> {
   }
 
   /**
+   * Returns flat frequency response (1.0 at all frequencies) - static version.
+   *
+   * PulseTrain is a source node that generates signal, not a filter.
+   * The response represents that no frequency-dependent filtering is applied.
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @returns Array of linear amplitude values (all equal to 1.0)
+   */
+  static getFrequencyResponse(frequencies: number[]): number[] {
+    return frequencies.map(() => 1);
+  }
+
+  /**
    * Returns flat frequency response (1.0 at all frequencies).
    *
    * PulseTrain is a source node that generates signal, not a filter.
    * The response represents that no frequency-dependent filtering is applied.
    */
-  getFrequencyResponse(frequencies: number[], _sampleRate: number): number[] {
-    return frequencies.map(() => 1);
+  getFrequencyResponse(frequencies: number[]): number[] {
+    return PulseTrain.getFrequencyResponse(frequencies);
   }
 }

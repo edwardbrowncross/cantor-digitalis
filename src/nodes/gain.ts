@@ -36,12 +36,25 @@ export class Gain implements Node<GainParams> {
   }
 
   /**
+   * Computes the frequency response of the gain node (static version).
+   *
+   * Returns an array filled with the specified gain value (flat response).
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param gain The gain value (linear amplitude)
+   * @returns Array of linear amplitude values (all equal to gain)
+   */
+  static getFrequencyResponse(frequencies: number[], gain: number): number[] {
+    return frequencies.map(() => gain);
+  }
+
+  /**
    * Computes the frequency response of the gain node.
    *
    * Returns an array filled with the current gain value (flat response).
    */
-  getFrequencyResponse(frequencies: number[], _sampleRate: number): number[] {
-    const gainValue = this.gainNode.gain.value;
-    return frequencies.map(() => gainValue);
+  getFrequencyResponse(frequencies: number[]): number[] {
+    return Gain.getFrequencyResponse(frequencies, this.gainNode.gain.value);
   }
 }

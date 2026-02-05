@@ -210,14 +210,21 @@ export class FormantResonator implements Node<FormantResonatorParams> {
   }
 
   /**
-   * Computes the frequency response of the formant resonator.
+   * Computes the frequency response of the formant resonator (static version).
    *
-   * Uses current values of F, B, and A parameters.
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The formant resonator parameters (F, B, A)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
-    const F = this.F.value;
-    const B = this.B.value;
-    const A = this.A.value;
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: FormantResonatorParams,
+    sampleRate: number = 96000
+  ): number[] {
+    const { F, B, A } = params;
 
     const Ts = 1 / sampleRate;
     const R = Math.exp(-Math.PI * B * Ts);
@@ -235,5 +242,18 @@ export class FormantResonator implements Node<FormantResonatorParams> {
     const a: [number, number, number] = [1, a1, a2];
 
     return evaluateBiquad(b, a, frequencies, sampleRate);
+  }
+
+  /**
+   * Computes the frequency response of the formant resonator.
+   *
+   * Uses current values of F, B, and A parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
+    return FormantResonator.getFrequencyResponse(
+      frequencies,
+      { F: this.F.value, B: this.B.value, A: this.A.value },
+      sampleRate
+    );
   }
 }

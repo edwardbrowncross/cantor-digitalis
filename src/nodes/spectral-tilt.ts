@@ -217,8 +217,10 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
   /**
    * Computes the coefficients for a single spectral tilt stage.
    * Returns [a, g] where a is the pole coefficient and g is the gain.
+   *
+   * This is a static helper that can be used by both instance and static methods.
    */
-  private computeStageCoefficients(
+  private static computeStageCoefficientsStatic(
     Tl: number,
     sampleRate: number
   ): [number, number] {
@@ -237,17 +239,24 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
   }
 
   /**
-   * Computes the frequency response of the spectral tilt filter.
+   * Computes the frequency response of the spectral tilt filter (static version).
    *
-   * Uses current values of Tl1 and Tl2 parameters.
-   * The response is the product of two cascaded first-order filters.
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The spectral tilt parameters (Tl1, Tl2)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
-    const Tl1 = this.Tl1.value;
-    const Tl2 = this.Tl2.value;
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: SpectralTiltParams,
+    sampleRate: number  = 96000
+  ): number[] {
+    const { Tl1, Tl2 } = params;
 
-    const [a1, g1] = this.computeStageCoefficients(Tl1, sampleRate);
-    const [a2, g2] = this.computeStageCoefficients(Tl2, sampleRate);
+    const [a1, g1] = SpectralTilt.computeStageCoefficientsStatic(Tl1, sampleRate);
+    const [a2, g2] = SpectralTilt.computeStageCoefficientsStatic(Tl2, sampleRate);
 
     // Each stage: H(z) = g / (1 - a*z^{-1})
     // In standard form: b = [g, 0], a = [1, -a]
@@ -255,5 +264,19 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
     const response2 = evaluateFirstOrder([g2, 0], [1, -a2], frequencies, sampleRate);
 
     return combineSeries(response1, response2);
+  }
+
+  /**
+   * Computes the frequency response of the spectral tilt filter.
+   *
+   * Uses current values of Tl1 and Tl2 parameters.
+   * The response is the product of two cascaded first-order filters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
+    return SpectralTilt.getFrequencyResponse(
+      frequencies,
+      { Tl1: this.Tl1.value, Tl2: this.Tl2.value },
+      sampleRate
+    );
   }
 }

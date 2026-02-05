@@ -203,7 +203,11 @@ pulseTrain.start();
 
 ## Frequency Response Analysis
 
-All nodes provide `getFrequencyResponse(frequencies, sampleRate)` for computing magnitude response at specified frequencies, useful for visualisation and analysis.
+All nodes provide methods for computing magnitude response at specified frequencies, useful for visualisation and analysis.
+
+### From Live Nodes
+
+Use the member method to get the response based on current AudioParam values:
 
 ```typescript
 import { linearToDb } from "cantor-digitalis";
@@ -212,13 +216,41 @@ import { linearToDb } from "cantor-digitalis";
 const frequencies = Array.from({ length: 500 }, (_, i) => 20 * Math.pow(1000, i / 499));
 
 // Get response from the complete voice...
-const voiceResponse = voice.getFrequencyResponse(frequencies, ctx.sampleRate);
+const voiceResponse = voice.getFrequencyResponse(frequencies);
 // ...or individual components
-const tractResponse = voice.tract.getFrequencyResponse(frequencies, ctx.sampleRate);
-const f1Response = voice.tract.formants[0].getFrequencyResponse(frequencies, ctx.sampleRate);
+const tractResponse = voice.tract.getFrequencyResponse(frequencies);
+const f1Response = voice.tract.formants[0].getFrequencyResponse(frequencies);
 
 // Convert to dB for plotting
 const responseDb = linearToDb(voiceResponse);
+```
+
+### Without AudioContext (Static Method)
+
+Use the static method to compute frequency response from explicit parameters, without needing an AudioContext. This is useful for server-side rendering, web workers, or precomputing response curves before audio initialisation.
+
+```typescript
+import { Voice, generateSynthParams, linearToDb } from "cantor-digitalis";
+
+const frequencies = Array.from({ length: 500 }, (_, i) => 20 * Math.pow(1000, i / 499));
+
+// Generate synth params
+const synthParams = generateSynthParams({
+  pitch: 0.5,
+  pitchOffset: 60,
+  vocalEffort: 0.7,
+  vowelHeight: 0.5,
+  vowelBackness: 0.5,
+  tenseness: 0.5,
+  breathiness: 0.02,
+  roughness: 0.01,
+  vocalTractSize: 0.3,
+  isFalsetto: false,
+});
+
+// Compute response without any AudioContext
+const response = Voice.getFrequencyResponse(frequencies, synthParams);
+const responseDb = linearToDb(response);
 ```
 
 ## License

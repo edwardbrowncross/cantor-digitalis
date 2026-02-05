@@ -1,6 +1,8 @@
 import type { Node } from "./types";
 import { registerWorkletOnce } from "./worklet-utils";
-import { combineSeries } from "../utils/frequency-response";
+import {
+  combineSeries,
+} from "../utils/frequency-response";
 
 export type NoiseSourceParams = {
   /** Noise amplitude, derived directly from B (breathiness) */
@@ -180,7 +182,7 @@ export class NoiseSource implements Node<NoiseSourceParams> {
    * Uses native BiquadFilterNode.getFrequencyResponse() for accurate results.
    * The response is the product of the highpass and lowpass filters.
    */
-  getFrequencyResponse(frequencies: number[], _sampleRate: number): number[] {
+  getFrequencyResponse(frequencies: number[]): number[] {
     const freqArray = new Float32Array(frequencies);
     const magResponse = new Float32Array(frequencies.length);
     const phaseResponse = new Float32Array(frequencies.length);

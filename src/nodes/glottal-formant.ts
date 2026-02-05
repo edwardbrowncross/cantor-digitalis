@@ -195,14 +195,21 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
   }
 
   /**
-   * Computes the frequency response of the glottal formant filter.
+   * Computes the frequency response of the glottal formant filter (static version).
    *
-   * Uses current values of Fg, Bg, and Ag parameters.
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The glottal formant parameters (Fg, Bg, Ag)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
-    const Fg = this.Fg.value;
-    const Bg = this.Bg.value;
-    const Ag = this.Ag.value;
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: GlottalFormantParams,
+    sampleRate: number = 96000
+  ): number[] {
+    const { Fg, Bg, Ag } = params;
 
     const Ts = 1 / sampleRate;
     const R = Math.exp(-Math.PI * Bg * Ts);
@@ -217,5 +224,18 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
     const a: [number, number, number] = [1, a1, a2];
 
     return evaluateBiquad(b, a, frequencies, sampleRate);
+  }
+
+  /**
+   * Computes the frequency response of the glottal formant filter.
+   *
+   * Uses current values of Fg, Bg, and Ag parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
+    return GlottalFormant.getFrequencyResponse(
+      frequencies,
+      { Fg: this.Fg.value, Bg: this.Bg.value, Ag: this.Ag.value },
+      sampleRate
+    );
   }
 }

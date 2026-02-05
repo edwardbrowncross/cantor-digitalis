@@ -218,12 +218,42 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
   }
 
   /**
+   * Computes the frequency response of the glottal flow derivative filter chain (static version).
+   *
+   * This static method allows frequency response calculation without an AudioContext.
+   * Returns the response of the voiced path: GlottalFormant → SpectralTilt.
+   * The noise path has its own bandpass filtering but is mixed separately.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The GFD parameters (Fg, Bg, Ag, Tl1, Tl2)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
+   */
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: { Fg: number; Bg: number; Ag: number; Tl1: number; Tl2: number },
+    sampleRate: number = 96000
+  ): number[] {
+    const gfResponse = GlottalFormant.getFrequencyResponse(
+      frequencies,
+      { Fg: params.Fg, Bg: params.Bg, Ag: params.Ag },
+      sampleRate
+    );
+    const stResponse = SpectralTilt.getFrequencyResponse(
+      frequencies,
+      { Tl1: params.Tl1, Tl2: params.Tl2 },
+      sampleRate
+    );
+    return combineSeries(gfResponse, stResponse);
+  }
+
+  /**
    * Computes the frequency response of the glottal flow derivative filter chain.
    *
    * Returns the response of the voiced path: GlottalFormant → SpectralTilt.
    * The noise path has its own bandpass filtering but is mixed separately.
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
     const gfResponse = this.glottalFormant.getFrequencyResponse(
       frequencies,
       sampleRate

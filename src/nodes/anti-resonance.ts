@@ -197,13 +197,21 @@ export class AntiResonance implements Node<AntiResonanceParams> {
   }
 
   /**
-   * Computes the frequency response of the anti-resonance (notch) filter.
+   * Computes the frequency response of the anti-resonance (notch) filter (static version).
    *
-   * Uses current values of F and Q parameters.
+   * This static method allows frequency response calculation without an AudioContext.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The anti-resonance parameters (F, Q)
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
-    const F = this.F.value;
-    const Q = this.Q.value;
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: AntiResonanceParams,
+    sampleRate: number = 96000
+  ): number[] {
+    const { F, Q } = params;
 
     const Ts = 1 / sampleRate;
     const omega = 2 * Math.PI * F * Ts;
@@ -218,5 +226,18 @@ export class AntiResonance implements Node<AntiResonanceParams> {
     const a: [number, number, number] = [1, beta / a0, (1 - alpha) / a0];
 
     return evaluateBiquad(b, a, frequencies, sampleRate);
+  }
+
+  /**
+   * Computes the frequency response of the anti-resonance (notch) filter.
+   *
+   * Uses current values of F and Q parameters.
+   */
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
+    return AntiResonance.getFrequencyResponse(
+      frequencies,
+      { F: this.F.value, Q: this.Q.value },
+      sampleRate
+    );
   }
 }

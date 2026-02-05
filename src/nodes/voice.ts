@@ -160,11 +160,44 @@ export class Voice implements Node<SynthParams> {
   }
 
   /**
+   * Computes the frequency response of the complete voice synthesizer (static version).
+   *
+   * This static method allows frequency response calculation without an AudioContext.
+   * Returns the response of the full chain: Source → VocalTract → OutputGain.
+   *
+   * @param frequencies Array of frequencies in Hz
+   * @param params The complete synthesis parameters
+   * @param sampleRate Sample rate in Hz (default: 96000)
+   * @returns Array of linear amplitude values
+   */
+  static getFrequencyResponse(
+    frequencies: number[],
+    params: SynthParams,
+    sampleRate: number = 96000
+  ): number[] {
+    const sourceResponse = GlottalFlowDerivative.getFrequencyResponse(
+      frequencies,
+      { Fg: params.Fg, Bg: params.Bg, Ag: params.Ag, Tl1: params.Tl1, Tl2: params.Tl2 },
+      sampleRate
+    );
+    const tractResponse = VocalTract.getFrequencyResponse(
+      frequencies,
+      { formants: params.formants, F_BQ: params.F_BQ, Q_BQ: params.Q_BQ },
+      sampleRate
+    );
+    const gainResponse = Gain.getFrequencyResponse(
+      frequencies,
+      params.outputGain ?? 1
+    );
+    return combineSeries(sourceResponse, tractResponse, gainResponse);
+  }
+
+  /**
    * Computes the frequency response of the complete voice synthesizer.
    *
    * Returns the response of the full chain: Source → VocalTract → OutputGain.
    */
-  getFrequencyResponse(frequencies: number[], sampleRate: number): number[] {
+  getFrequencyResponse(frequencies: number[], sampleRate: number = 96000): number[] {
     const sourceResponse = this.glottalFlowDerivative.getFrequencyResponse(
       frequencies,
       sampleRate
@@ -175,7 +208,6 @@ export class Voice implements Node<SynthParams> {
     );
     const gainResponse = this.outputGainNode.getFrequencyResponse(
       frequencies,
-      sampleRate
     );
     return combineSeries(sourceResponse, tractResponse, gainResponse);
   }

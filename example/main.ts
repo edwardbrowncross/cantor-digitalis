@@ -132,8 +132,8 @@ async function startAudio(): Promise<void> {
 
   // Start spectrum visualization
   if (analyser && spectrumCanvas) {
-    const getFrequencyResponse = (frequencies: number[], sampleRate: number) => {
-      return voice?.getFrequencyResponse(frequencies, sampleRate) ?? null;
+    const getFrequencyResponse = (frequencies: number[]) => {
+      return voice?.getFrequencyResponse(frequencies) ?? null;
     };
     spectrumAnalyzer = new SpectrumAnalyzer(
       spectrumCanvas,

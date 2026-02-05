@@ -208,7 +208,14 @@ pulseTrain.start();
 
 ### Frequency Response Analysis
 
-All nodes implement `getFrequencyResponse(frequencies, sampleRate)` to compute their magnitude response at specified frequencies. This enables visualisation (e.g., spectrum plots) and analysis without requiring audio processing.
+All nodes provide two ways to compute their magnitude response at specified frequencies:
+
+1. **Member method** `node.getFrequencyResponse(frequencies, sampleRate)` — reads current AudioParam values from a live node instance
+2. **Static method** `Node.getFrequencyResponse(frequencies, params, sampleRate?)` — computes response from explicit parameters without requiring an AudioContext. The `sampleRate` parameter is optional and defaults to 96000 Hz.
+
+#### Member Method (Live Nodes)
+
+Use the member method when you have a running voice instance and want to visualise its current state:
 
 ```typescript
 // Generate frequency points (logarithmic scale, 20 Hz to 20 kHz)
@@ -216,7 +223,7 @@ const frequencies = Array.from({ length: 500 }, (_, i) =>
   20 * Math.pow(1000, i / 499)
 );
 
-// Get response from any node
+// Get response from a live voice instance
 const response = voice.getFrequencyResponse(frequencies, ctx.sampleRate);
 
 // Convert to dB for plotting
@@ -224,11 +231,11 @@ import { linearToDb } from "cantor-digitalis";
 const responseDb = linearToDb(response);
 ```
 
-**Hierarchical responses:** Composite nodes return the combined response of their children:
-- `Voice.getFrequencyResponse()` returns Source × VocalTract × OutputGain
-- `VocalTract.getFrequencyResponse()` returns FormantBank × AntiResonance
-- `FormantBank.getFrequencyResponse()` returns the sum of all parallel formants
-- `GlottalFlowDerivative.getFrequencyResponse()` returns GlottalFormant × SpectralTilt
+The member method reads the current `AudioParam.value` from all nodes in the hierarchy, so the response reflects any automation or modulation that has been applied. This is useful for:
+
+- Real-time spectrum visualisation that tracks parameter changes
+- Debugging a running synthesis pipeline
+- Displaying the current filter state in a UI
 
 **Individual node responses:** Access sub-nodes for component analysis:
 
@@ -246,7 +253,104 @@ const notchResponse = voice.tract.antiResonanceNode.getFrequencyResponse(frequen
 const sourceResponse = voice.source.getFrequencyResponse(frequencies, ctx.sampleRate);
 ```
 
-**Utility functions:** The `utils/frequency-response` module provides helpers for working with responses:
+#### Static Method (No AudioContext Required)
+
+Use the static method when you need to compute frequency response without creating audio nodes:
+
+```typescript
+import { Voice, generateSynthParams } from "cantor-digitalis";
+
+// Generate synth params from perceptual parameters
+const synthParams = generateSynthParams({
+  pitch: 0.5,
+  pitchOffset: 48,
+  vocalEffort: 0.6,
+  vowelHeight: 0.5,
+  vowelBackness: 0.5,
+  tenseness: 0.5,
+  breathiness: 0.1,
+  roughness: 0.05,
+  vocalTractSize: 0.5,
+  isFalsetto: false,
+});
+
+// Compute response WITHOUT any AudioContext
+const frequencies = Array.from({ length: 500 }, (_, i) =>
+  20 * Math.pow(1000, i / 499)
+);
+// sampleRate is optional (defaults to 96000)
+const response = Voice.getFrequencyResponse(frequencies, synthParams);
+```
+
+The static method is useful for:
+
+- Server-side rendering of spectrum plots (e.g., in Node.js or a web worker)
+- Precomputing response curves for UI display before audio initialisation
+- Batch analysis of many parameter combinations
+- Unit testing filter behaviour without browser audio APIs
+
+**Static methods on sub-nodes:** Each node class provides its own static method with appropriate parameters. The `sampleRate` parameter is always optional (defaults to 96000):
+
+```typescript
+import {
+  GlottalFlowDerivative,
+  VocalTract,
+  FormantResonator,
+  GlottalFormant
+} from "cantor-digitalis";
+
+// Source response (glottal formant + spectral tilt)
+const sourceResponse = GlottalFlowDerivative.getFrequencyResponse(
+  frequencies,
+  { Fg: 220, Bg: 100, Ag: 1, Tl1: 10, Tl2: 5 }
+);
+
+// Vocal tract response
+const tractResponse = VocalTract.getFrequencyResponse(
+  frequencies,
+  {
+    formants: [
+      { F: 800, B: 80, A: 1 },
+      { F: 1200, B: 90, A: 0.5 },
+      // ... more formants
+    ],
+    F_BQ: 4700,
+    Q_BQ: 2.5,
+  }
+);
+
+// Single formant response
+const formantResponse = FormantResonator.getFrequencyResponse(
+  frequencies,
+  { F: 800, B: 80, A: 1 }
+);
+
+// Glottal formant only
+const gfResponse = GlottalFormant.getFrequencyResponse(
+  frequencies,
+  { Fg: 220, Bg: 100, Ag: 1 }
+);
+
+// Optionally specify sample rate (e.g., to match actual audio context)
+const responseAt44k = FormantResonator.getFrequencyResponse(
+  frequencies,
+  { F: 800, B: 80, A: 1 },
+  44100
+);
+```
+
+#### Hierarchical Responses
+
+Both member and static methods return the combined response of child nodes:
+
+- `Voice` returns Source × VocalTract × OutputGain
+- `VocalTract` returns FormantBank × AntiResonance
+- `FormantBank` returns the sum of all parallel formants
+- `GlottalFlowDerivative` returns GlottalFormant × SpectralTilt
+
+#### Utility Functions
+
+The `utils/frequency-response` module provides helpers for working with responses:
 
 ```typescript
 import { linearToDb, combineSeries, combineParallel } from "cantor-digitalis";
