@@ -19,12 +19,14 @@ import {
 
 import {
   createControlPanel,
+  createFormantEditor,
   midiToNoteName,
   SpectrumAnalyzer,
   SliderConfig,
   CheckboxConfig,
   VowelButtonConfig,
   DropdownConfig,
+  FormantSliderRefs,
 } from "./ui";
 import { englishVowelTable } from "./vowels";
 
@@ -158,6 +160,76 @@ function stopAudio(): void {
 }
 
 // ============================================================================
+// Formant Editor — Closest Vowel
+// ============================================================================
+
+/** Find the index of the closest vowel to (h, v) in the current vowel table */
+function findClosestVowelIndex(h: number, v: number): number {
+  const table = options.vowelTable ?? defaultVowelTable;
+  let bestIndex = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < table.vowels.length; i++) {
+    const vowel = table.vowels[i];
+    const dist = Math.hypot(vowel.h - h, vowel.v - v);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+/** Formant slider refs, set after UI creation */
+let formantSliderRefs: FormantSliderRefs | null = null;
+
+/** Update a slider's value and its display without triggering onChange */
+function setSliderValue(slider: HTMLInputElement, value: number): void {
+  slider.value = String(value);
+  // Update the sibling value display element
+  const valueEl = slider.parentElement?.querySelector(".value");
+  if (valueEl) {
+    valueEl.textContent = `${Math.round(value)} Hz`;
+  }
+}
+
+/** Update formant sliders to reflect the closest vowel's current values */
+function updateFormantSliders(): void {
+  if (!formantSliderRefs) return;
+  const table = options.vowelTable ?? defaultVowelTable;
+  const idx = findClosestVowelIndex(params.vowelBackness, params.vowelHeight);
+  const vowel = table.vowels[idx];
+  for (let i = 0; i < 5; i++) {
+    const formant = vowel.formants[i];
+    if (formant) {
+      setSliderValue(formantSliderRefs.F[i], formant.frequency);
+      setSliderValue(formantSliderRefs.B[i], formant.bandwidth);
+    }
+  }
+}
+
+/** Handle formant frequency slider change */
+function onFormantFrequencyChange(index: number, value: number): void {
+  const table = options.vowelTable ?? defaultVowelTable;
+  const idx = findClosestVowelIndex(params.vowelBackness, params.vowelHeight);
+  const vowel = table.vowels[idx];
+  if (vowel.formants[index]) {
+    vowel.formants[index].frequency = value;
+    updateVoice();
+  }
+}
+
+/** Handle formant bandwidth slider change */
+function onFormantBandwidthChange(index: number, value: number): void {
+  const table = options.vowelTable ?? defaultVowelTable;
+  const idx = findClosestVowelIndex(params.vowelBackness, params.vowelHeight);
+  const vowel = table.vowels[idx];
+  if (vowel.formants[index]) {
+    vowel.formants[index].bandwidth = value;
+    updateVoice();
+  }
+}
+
+// ============================================================================
 // UI Setup
 // ============================================================================
 
@@ -210,6 +282,7 @@ const paramSliders: SliderConfig[] = [
     onChange: (v) => {
       params.vowelHeight = v;
       updateVoice();
+      updateFormantSliders();
     },
   },
   {
@@ -222,6 +295,7 @@ const paramSliders: SliderConfig[] = [
     onChange: (v) => {
       params.vowelBackness = v;
       updateVoice();
+      updateFormantSliders();
     },
   },
   {
@@ -401,6 +475,7 @@ const { container, spectrumCanvas, updateVowelButtons } = createControlPanel(
     params.vowelBackness = h;
     params.vowelHeight = v;
     updateVoice();
+    updateFormantSliders();
   },
   vowelTableDropdown
 );
@@ -412,6 +487,25 @@ onVowelTableChange = (value: string) => {
   options.vowelTable = newTable;
   updateVowelButtons(getVowelButtonConfigs(newTable));
   updateVoice();
+  updateFormantSliders();
 };
+
+// Create formant editor and insert it after the vowel section
+const formantEditor = createFormantEditor({
+  onFrequencyChange: onFormantFrequencyChange,
+  onBandwidthChange: onFormantBandwidthChange,
+});
+formantSliderRefs = formantEditor.refs;
+
+// Insert the formant editor before the features section
+const featuresSection = container.querySelector(".features-section");
+if (featuresSection) {
+  container.insertBefore(formantEditor.element, featuresSection);
+} else {
+  container.appendChild(formantEditor.element);
+}
+
+// Initialize formant sliders with the closest vowel's values
+updateFormantSliders();
 
 document.getElementById("app")!.appendChild(container);

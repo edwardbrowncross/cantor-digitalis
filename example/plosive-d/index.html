@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cantor Digitalis — Plosive /d/</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background: #1a1a1a;
+        color: #eee;
+      }
+      .buttons {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        font-size: 48px;
+        padding: 32px 48px;
+        border: none;
+        border-radius: 12px;
+        background: #4a9;
+        color: white;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.1s;
+      }
+      button:hover {
+        background: #5ba;
+      }
+      button:active {
+        background: #398;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="buttons">
+      <button data-vowel="eh">deh</button>
+      <button data-vowel="ee">dee</button>
+      <button data-vowel="ah">dah</button>
+      <button data-vowel="oh">doh</button>
+      <button data-vowel="oo">doo</button>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -25,13 +25,20 @@ export default defineConfig(({ mode }) => {
     };
   }
 
-  // Example app build mode (default)
+  // Example apps (MPA mode)
   return {
     root: "example",
     base: "./",
     build: {
       outDir: resolve(__dirname, "dist-example"),
       emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, "example/index.html"),
+          interactive: resolve(__dirname, "example/interactive/index.html"),
+          "plosive-d": resolve(__dirname, "example/plosive-d/index.html"),
+        },
+      },
     },
     resolve: {
       alias: {

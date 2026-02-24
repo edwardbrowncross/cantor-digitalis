@@ -308,6 +308,61 @@ export interface SliderRefs {
   vowelBackness: HTMLInputElement;
 }
 
+export interface FormantSliderRefs {
+  F: HTMLInputElement[];
+  B: HTMLInputElement[];
+}
+
+export interface FormantEditorConfig {
+  /** Called when a formant slider value changes. Index is 0-4, value in Hz. */
+  onFrequencyChange: (index: number, value: number) => void;
+  onBandwidthChange: (index: number, value: number) => void;
+}
+
+/**
+ * Create a formant editor section with 10 sliders (F1-F5 frequency + B1-B5 bandwidth).
+ */
+export function createFormantEditor(
+  config: FormantEditorConfig
+): { element: HTMLElement; refs: FormantSliderRefs } {
+  const section = document.createElement("div");
+  section.className = "formant-section";
+
+  const header = document.createElement("h3");
+  header.textContent = "Formant Editor (Closest Vowel)";
+  section.appendChild(header);
+
+  const refs: FormantSliderRefs = { F: [], B: [] };
+
+  const formatHz = (v: number) => `${Math.round(v)} Hz`;
+
+  for (let i = 0; i < 5; i++) {
+    const fSlider = createSlider(section, {
+      label: `F${i + 1} Freq`,
+      min: 100,
+      max: 7000,
+      step: 1,
+      value: 500,
+      formatValue: formatHz,
+      onChange: (v) => config.onFrequencyChange(i, v),
+    });
+    refs.F.push(fSlider);
+
+    const bSlider = createSlider(section, {
+      label: `F${i + 1} BW`,
+      min: 1,
+      max: 500,
+      step: 1,
+      value: 50,
+      formatValue: formatHz,
+      onChange: (v) => config.onBandwidthChange(i, v),
+    });
+    refs.B.push(bSlider);
+  }
+
+  return { element: section, refs };
+}
+
 export function createControlPanel(
   paramSliders: SliderConfig[],
   featureCheckboxes: CheckboxConfig[],
