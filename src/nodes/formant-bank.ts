@@ -66,7 +66,7 @@ export class FormantBank implements Node<FormantBankParams> {
    * All formant resonators are created in parallel for efficiency.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: FormantBankParams
   ): Promise<FormantBank> {
     // Create input and output gain nodes for routing
@@ -146,7 +146,7 @@ export class FormantBank implements Node<FormantBankParams> {
   /**
    * Computes the frequency response of the formant bank (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    * The response is the sum of all parallel formant resonators.
    *
    * @param frequencies Array of frequencies in Hz

@@ -99,7 +99,7 @@ const PROCESSOR_NAME = "noise-source-processor";
  * and lowpass filters using native BiquadFilterNodes.
  */
 export class NoiseSource implements Node<NoiseSourceParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private workletNode: AudioWorkletNode;
   private highpassFilter: BiquadFilterNode;
   private lowpassFilter: BiquadFilterNode;
@@ -108,7 +108,7 @@ export class NoiseSource implements Node<NoiseSourceParams> {
   public out: AudioNode;
 
   private constructor(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     workletNode: AudioWorkletNode,
     highpassFilter: BiquadFilterNode,
     lowpassFilter: BiquadFilterNode
@@ -131,7 +131,7 @@ export class NoiseSource implements Node<NoiseSourceParams> {
    * The AudioWorklet module is registered automatically on first use.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: NoiseSourceParams
   ): Promise<NoiseSource> {
     await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);

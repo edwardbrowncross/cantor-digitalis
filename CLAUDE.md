@@ -21,7 +21,7 @@ We are writing an open-source web implementation of a voice synthesiser called c
 Audio processing components live in `src/nodes/`. Some nodes are low level utilities (e.g. gain). Others are higher level, building on these primitives. Each node follows a consistent pattern:
 
 - **Interface**: All nodes implement `Node<T>` from `types.ts`, providing `update(params)`, `destroy()`, and `in`/`out` AudioNode connection points.
-- **Factory**: Nodes use an async static `create(ctx, params)` method rather than direct construction, allowing for async setup of Web Audio resources.
+- **Factory**: Nodes use an async static `create(ctx, params)` method rather than direct construction, allowing for async setup of Web Audio resources. The `ctx` parameter accepts any `BaseAudioContext` (including `AudioContext` and `OfflineAudioContext`).
 - **AudioParams**: All AudioWorklet-based nodes expose their parameters as `AudioParam` properties for sample-accurate automation. The `update()` method uses `setTargetAtTime()` internally
 - **Starting and Stopping**: Nodes that generate sound (e.g., oscillators or nodes that are built on top of oscillators) start automatically on creation and can be started and stopped via their own methods.
 

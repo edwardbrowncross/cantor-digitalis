@@ -69,7 +69,7 @@ export class Voice implements Node<SynthParams> {
    * Sets up the complete source-filter synthesis pipeline.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: SynthParams
   ): Promise<Voice> {
     // Create all sub-nodes in parallel
@@ -162,7 +162,7 @@ export class Voice implements Node<SynthParams> {
   /**
    * Computes the frequency response of the complete voice synthesizer (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    * Returns the response of the full chain: Source → VocalTract → OutputGain.
    *
    * @param frequencies Array of frequencies in Hz

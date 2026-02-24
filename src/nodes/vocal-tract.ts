@@ -67,7 +67,7 @@ export class VocalTract implements Node<VocalTractParams> {
    * Sets up the parallel formant bank followed by the anti-resonance filter.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: VocalTractParams
   ): Promise<VocalTract> {
     // Create sub-nodes in parallel
@@ -129,7 +129,7 @@ export class VocalTract implements Node<VocalTractParams> {
   /**
    * Computes the frequency response of the vocal tract (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    * The response is the formant bank (parallel) followed by the anti-resonance (series).
    *
    * @param frequencies Array of frequencies in Hz

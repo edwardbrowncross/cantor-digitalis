@@ -92,7 +92,7 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
    * and the noise modulation path where noise is multiplied by the GFD signal.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: GlottalFlowDerivativeParams
   ): Promise<GlottalFlowDerivative> {
     // Create all sub-nodes in parallel
@@ -220,7 +220,7 @@ export class GlottalFlowDerivative implements Node<GlottalFlowDerivativeParams> 
   /**
    * Computes the frequency response of the glottal flow derivative filter chain (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    * Returns the response of the voiced path: GlottalFormant → SpectralTilt.
    * The noise path has its own bandpass filtering but is mixed separately.
    *

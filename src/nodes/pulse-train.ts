@@ -198,14 +198,14 @@ const PROCESSOR_NAME = "pulse-train-processor";
  *   - shimmerDepth: Maximum amplitude perturbation (0-1 for up to ±100%)
  */
 export class PulseTrain implements Node<PulseTrainParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private workletNode: AudioWorkletNode;
   private gain: Gain;
 
   public in: null;
   public out: AudioNode;
 
-  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode, gain: Gain) {
+  private constructor(ctx: BaseAudioContext, workletNode: AudioWorkletNode, gain: Gain) {
     this.ctx = ctx;
     this.workletNode = workletNode;
     this.gain = gain;
@@ -228,7 +228,7 @@ export class PulseTrain implements Node<PulseTrainParams> {
     return this.workletNode.parameters.get("shimmerDepth")!;
   }
 
-  static async create(ctx: AudioContext, params: PulseTrainParams): Promise<PulseTrain> {
+  static async create(ctx: BaseAudioContext, params: PulseTrainParams): Promise<PulseTrain> {
     await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
 
     const workletNode = new AudioWorkletNode(ctx, PROCESSOR_NAME);
@@ -266,7 +266,7 @@ export class PulseTrain implements Node<PulseTrainParams> {
    *
    * PulseTrain is a source node that generates signal, not a filter.
    * The response represents that no frequency-dependent filtering is applied.
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    *
    * @param frequencies Array of frequencies in Hz
    * @returns Array of linear amplitude values (all equal to 1.0)

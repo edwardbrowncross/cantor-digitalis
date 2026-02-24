@@ -161,12 +161,12 @@ const PROCESSOR_NAME = "spectral-tilt-processor";
  * Where Ep is the perturbed vocal effort (E with heartbeat and slow perturbations).
  */
 export class SpectralTilt implements Node<SpectralTiltParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: BaseAudioContext, workletNode: AudioWorkletNode) {
     this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
@@ -189,7 +189,7 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
    * The AudioWorklet module is registered automatically on first use.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: SpectralTiltParams
   ): Promise<SpectralTilt> {
     await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
@@ -241,7 +241,7 @@ export class SpectralTilt implements Node<SpectralTiltParams> {
   /**
    * Computes the frequency response of the spectral tilt filter (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    *
    * @param frequencies Array of frequencies in Hz
    * @param params The spectral tilt parameters (Tl1, Tl2)

@@ -16,5 +16,5 @@ export interface Node<T extends Record<string, any>> {
 }
 
 export interface NodeStatic<T extends Record<string, any>> {
-  create (ctx: AudioContext, params: T): Node<T>;
+  create (ctx: BaseAudioContext, params: T): Node<T>;
 }

@@ -5,19 +5,19 @@ export type GainParams = {
 }
 
 export class Gain implements Node<GainParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private gainNode: GainNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(ctx: AudioContext, gainNode: GainNode) {
+  private constructor(ctx: BaseAudioContext, gainNode: GainNode) {
     this.ctx = ctx;
     this.gainNode = gainNode;
     this.in = gainNode;
     this.out = gainNode;
   }
 
-  static async create(ctx: AudioContext, params: GainParams): Promise<Gain> {
+  static async create(ctx: BaseAudioContext, params: GainParams): Promise<Gain> {
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(params.gain, ctx.currentTime);
     return new Gain(ctx, gainNode);
@@ -39,7 +39,7 @@ export class Gain implements Node<GainParams> {
    * Computes the frequency response of the gain node (static version).
    *
    * Returns an array filled with the specified gain value (flat response).
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    *
    * @param frequencies Array of frequencies in Hz
    * @param gain The gain value (linear amplitude)

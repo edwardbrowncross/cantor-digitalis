@@ -143,12 +143,12 @@ const PROCESSOR_NAME = "anti-resonance-processor";
  *   - Q (anti-formant quality factor) — fixed at 2.5 in the paper
  */
 export class AntiResonance implements Node<AntiResonanceParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: BaseAudioContext, workletNode: AudioWorkletNode) {
     this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
@@ -171,7 +171,7 @@ export class AntiResonance implements Node<AntiResonanceParams> {
    * The AudioWorklet module is registered automatically on first use.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: AntiResonanceParams
   ): Promise<AntiResonance> {
     await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
@@ -199,7 +199,7 @@ export class AntiResonance implements Node<AntiResonanceParams> {
   /**
    * Computes the frequency response of the anti-resonance (notch) filter (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    *
    * @param frequencies Array of frequencies in Hz
    * @param params The anti-resonance parameters (F, Q)

@@ -135,12 +135,12 @@ const PROCESSOR_NAME = "glottal-formant-processor";
  * are computed from T (tenseness), E (vocal effort), and M (laryngeal mechanism).
  */
 export class GlottalFormant implements Node<GlottalFormantParams> {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private workletNode: AudioWorkletNode;
   public in: AudioNode;
   public out: AudioNode;
 
-  private constructor(ctx: AudioContext, workletNode: AudioWorkletNode) {
+  private constructor(ctx: BaseAudioContext, workletNode: AudioWorkletNode) {
     this.ctx = ctx;
     this.workletNode = workletNode;
     this.in = workletNode;
@@ -168,7 +168,7 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
    * The AudioWorklet module is registered automatically on first use.
    */
   static async create(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     params: GlottalFormantParams
   ): Promise<GlottalFormant> {
     await registerWorkletOnce(ctx, PROCESSOR_NAME, processorCode);
@@ -197,7 +197,7 @@ export class GlottalFormant implements Node<GlottalFormantParams> {
   /**
    * Computes the frequency response of the glottal formant filter (static version).
    *
-   * This static method allows frequency response calculation without an AudioContext.
+   * This static method allows frequency response calculation without an BaseAudioContext.
    *
    * @param frequencies Array of frequencies in Hz
    * @param params The glottal formant parameters (Fg, Bg, Ag)
